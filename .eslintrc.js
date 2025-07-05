@@ -13,7 +13,10 @@ module.exports = {
     },
     rules: {
         'no-console': 'off',
-        'no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
+        'no-unused-vars': ['error', { 
+            'argsIgnorePattern': '^_',
+            'varsIgnorePattern': '^_'
+        }],
         'indent': ['error', 4],
         'linebreak-style': ['error', 'unix'],
         'quotes': ['error', 'single'],

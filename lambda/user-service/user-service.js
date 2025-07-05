@@ -10,20 +10,20 @@ exports.handler = async (event) => {
         const { action, userId, requesterId, body } = event;
         
         switch (action) {
-            case 'getProfile':
-                return await getUserProfile(userId);
-            case 'updateProfile':
-                return await updateUserProfile(userId, JSON.parse(body));
-            case 'getUser':
-                return await getUser(userId, requesterId);
-            case 'createUser':
-                return await createUser(JSON.parse(body));
-            case 'deleteUser':
-                return await deleteUser(userId, requesterId);
-            case 'listUsers':
-                return await listUsers(requesterId);
-            default:
-                return errorResponse(400, 'Invalid action');
+        case 'getProfile':
+            return await getUserProfile(userId);
+        case 'updateProfile':
+            return await updateUserProfile(userId, JSON.parse(body));
+        case 'getUser':
+            return await getUser(userId, requesterId);
+        case 'createUser':
+            return await createUser(JSON.parse(body));
+        case 'deleteUser':
+            return await deleteUser(userId, requesterId);
+        case 'listUsers':
+            return await listUsers(requesterId);
+        default:
+            return errorResponse(400, 'Invalid action');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -44,7 +44,7 @@ async function getUserProfile(userId) {
         }
         
         // Remove sensitive information
-        const { password, ...userProfile } = result.Item;
+        const { password: _password, ...userProfile } = result.Item;
         
         return successResponse(userProfile);
     } catch (error) {
@@ -106,7 +106,7 @@ async function updateUserProfile(userId, userData) {
         }).promise();
         
         // Remove sensitive information
-        const { password, ...userProfile } = result.Attributes;
+        const { password: _password, ...userProfile } = result.Attributes;
         
         return successResponse(userProfile);
     } catch (error) {
@@ -138,7 +138,7 @@ async function getUser(userId, requesterId) {
         }
         
         // Remove sensitive information
-        const { password, ...userProfile } = result.Item;
+        const { password: _password, ...userProfile } = result.Item;
         
         return successResponse(userProfile);
     } catch (error) {

@@ -12,20 +12,20 @@ exports.handler = async (event) => {
         const { action, userId, orderId, body } = event;
         
         switch (action) {
-            case 'createOrder':
-                return await createOrder(userId, JSON.parse(body));
-            case 'getUserOrders':
-                return await getUserOrders(userId);
-            case 'getOrder':
-                return await getOrder(orderId, userId);
-            case 'updateOrder':
-                return await updateOrder(orderId, userId, JSON.parse(body));
-            case 'deleteOrder':
-                return await deleteOrder(orderId, userId);
-            case 'listAllOrders':
-                return await listAllOrders(userId);
-            default:
-                return errorResponse(400, 'Invalid action');
+        case 'createOrder':
+            return await createOrder(userId, JSON.parse(body));
+        case 'getUserOrders':
+            return await getUserOrders(userId);
+        case 'getOrder':
+            return await getOrder(orderId, userId);
+        case 'updateOrder':
+            return await updateOrder(orderId, userId, JSON.parse(body));
+        case 'deleteOrder':
+            return await deleteOrder(orderId, userId);
+        case 'listAllOrders':
+            return await listAllOrders(userId);
+        default:
+            return errorResponse(400, 'Invalid action');
         }
     } catch (error) {
         console.error('Error:', error);

@@ -4,7 +4,7 @@ const cognito = new AWS.CognitoIdentityServiceProvider();
 const lambda = new AWS.Lambda();
 
 const SESSIONS_TABLE = process.env.SESSIONS_TABLE_NAME;
-const USER_POOL_ID = process.env.USER_POOL_ID;
+const _USER_POOL_ID = process.env.USER_POOL_ID;
 const USER_POOL_CLIENT_ID = process.env.USER_POOL_CLIENT_ID;
 const USER_SERVICE_ARN = process.env.USER_SERVICE_ARN;
 
@@ -15,24 +15,24 @@ exports.handler = async (event) => {
         const { action, body } = event;
         
         switch (action) {
-            case 'login':
-                return await login(JSON.parse(body));
-            case 'register':
-                return await register(JSON.parse(body));
-            case 'refresh':
-                return await refreshToken(JSON.parse(body));
-            case 'logout':
-                return await logout(JSON.parse(body));
-            case 'forgotPassword':
-                return await forgotPassword(JSON.parse(body));
-            case 'resetPassword':
-                return await resetPassword(JSON.parse(body));
-            case 'verifyEmail':
-                return await verifyEmail(JSON.parse(body));
-            case 'resendVerification':
-                return await resendVerification(JSON.parse(body));
-            default:
-                return errorResponse(400, 'Invalid action');
+        case 'login':
+            return await login(JSON.parse(body));
+        case 'register':
+            return await register(JSON.parse(body));
+        case 'refresh':
+            return await refreshToken(JSON.parse(body));
+        case 'logout':
+            return await logout(JSON.parse(body));
+        case 'forgotPassword':
+            return await forgotPassword(JSON.parse(body));
+        case 'resetPassword':
+            return await resetPassword(JSON.parse(body));
+        case 'verifyEmail':
+            return await verifyEmail(JSON.parse(body));
+        case 'resendVerification':
+            return await resendVerification(JSON.parse(body));
+        default:
+            return errorResponse(400, 'Invalid action');
         }
     } catch (error) {
         console.error('Error:', error);

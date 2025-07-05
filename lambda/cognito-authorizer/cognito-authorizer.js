@@ -1,4 +1,3 @@
-const AWS = require('aws-sdk');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
 

@@ -12,22 +12,22 @@ exports.handler = async (event) => {
         const { action, userId, productId, body } = event;
         
         switch (action) {
-            case 'getProducts':
-                return await getProducts();
-            case 'getProduct':
-                return await getProduct(productId);
-            case 'createProduct':
-                return await createProduct(userId, JSON.parse(body));
-            case 'updateProduct':
-                return await updateProduct(productId, userId, JSON.parse(body));
-            case 'deleteProduct':
-                return await deleteProduct(productId, userId);
-            case 'getProductsByCategory':
-                return await getProductsByCategory(JSON.parse(body).category);
-            case 'searchProducts':
-                return await searchProducts(JSON.parse(body).searchTerm);
-            default:
-                return errorResponse(400, 'Invalid action');
+        case 'getProducts':
+            return await getProducts();
+        case 'getProduct':
+            return await getProduct(productId);
+        case 'createProduct':
+            return await createProduct(userId, JSON.parse(body));
+        case 'updateProduct':
+            return await updateProduct(productId, userId, JSON.parse(body));
+        case 'deleteProduct':
+            return await deleteProduct(productId, userId);
+        case 'getProductsByCategory':
+            return await getProductsByCategory(JSON.parse(body).category);
+        case 'searchProducts':
+            return await searchProducts(JSON.parse(body).searchTerm);
+        default:
+            return errorResponse(400, 'Invalid action');
         }
     } catch (error) {
         console.error('Error:', error);
