@@ -1,0 +1,53 @@
+# User Service
+userService:
+  handler: lambda/user-service/user-service.handler
+  warmup: true
+  events:
+    - http:
+        path: /users/profile
+        method: get
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /users/profile
+        method: put
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /users/{userId}
+        method: get
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /users/{userId}
+        method: put
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /users/{userId}
+        method: delete
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /users
+        method: get
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300 

@@ -1,0 +1,172 @@
+# Serverless Framework
+.serverless/
+serverless.yml.backup
+.serverless_plugins/
+
+# AWS
+*.pem
+.aws/
+
+# Environment Variables
+.env
+.env.local
+.env.dev
+.env.prod
+.env.staging
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Lambda deployment packages
+*.zip
+*.jar
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Build outputs
+build/
+dist/
+out/
+
+# Temporary folders
+tmp/
+temp/
+
+# CloudFormation
+*.cf.json
+*.cf.yaml
+
+# CDK
+cdk.out/
+
+# Local development
+.local/
+.cache/
+
+# Webpack
+webpack.config.js.backup
+
+# Jest
+coverage/
+
+# ESLint
+.eslintcache
+
+# Parcel
+.parcel-cache/
+
+# Next.js
+.next/
+
+# Storybook
+.storybook/
+
+# Serverless Webpack
+.webpack/
+
+# Serverless plugin
+.serverless_plugins/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# Backup files
+*.backup
+*.bak
+
+# Test files
+test-results/
+coverage/
+
+# Build artifacts
+artifacts/
+
+# Lambda layers
+layers/
+
+# Secrets
+secrets.json
+credentials.json
+
+# CloudWatch logs
+cloudwatch-logs/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# C#
+bin/
+obj/
+*.dll
+*.exe
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Local configuration overrides
+local.yml
+local.json 

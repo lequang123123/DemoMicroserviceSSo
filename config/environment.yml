@@ -1,0 +1,8 @@
+STAGE: ${self:provider.stage}
+REGION: ${self:provider.region}
+USER_POOL_ID: !Ref CognitoUserPool
+USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+USERS_TABLE_NAME: !Ref UsersTable
+ORDERS_TABLE_NAME: !Ref OrdersTable
+PRODUCTS_TABLE_NAME: !Ref ProductsTable
+SESSIONS_TABLE_NAME: !Ref SessionsTable 

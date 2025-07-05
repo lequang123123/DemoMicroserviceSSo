@@ -1,0 +1,20 @@
+{
+  "name": "product-service",
+  "version": "1.0.0",
+  "description": "Product management microservice",
+  "main": "product-service.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1400.0"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "product",
+    "microservice"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+} 

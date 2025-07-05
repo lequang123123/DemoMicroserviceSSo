@@ -1,0 +1,55 @@
+# Order Service
+orderService:
+  handler: lambda/order-service/order-service.handler
+  warmup: true
+  environment:
+    USER_SERVICE_ARN: !GetAtt UserServiceLambdaFunction.Arn
+  events:
+    - http:
+        path: /orders
+        method: post
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /orders
+        method: get
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /orders/{orderId}
+        method: get
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /orders/{orderId}
+        method: put
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /orders/{orderId}
+        method: delete
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300
+    - http:
+        path: /orders/admin
+        method: get
+        cors: true
+        authorizer:
+          name: cognitoAuthorizer
+          type: request
+          resultTtlInSeconds: 300 

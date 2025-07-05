@@ -1,0 +1,56 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - echo "Installing dependencies..."
+      - npm install -g aws-cdk@latest
+      - npm install
+      - echo "Installing Lambda dependencies..."
+      - cd lambda/user-service && npm install && cd ../..
+      - cd lambda/order-service && npm install && cd ../..
+      - cd lambda/product-service && npm install && cd ../..
+      - cd lambda/auth-service && npm install && cd ../..
+      - cd lambda/cognito-authorizer && npm install && cd ../..
+      
+  pre_build:
+    commands:
+      - echo "Running pre-build phase..."
+      - echo "Running tests..."
+      - npm test
+      - echo "Linting code..."
+      - npm run lint || true
+      
+  build:
+    commands:
+      - echo "Build started on `date`"
+      - echo "Building TypeScript..."
+      - npm run build
+      - echo "Synthesizing CDK..."
+      - cdk synth --all
+      - echo "Creating deployment packages..."
+      - mkdir -p deployment-packages
+      - cd lambda/user-service && zip -r ../../deployment-packages/user-service.zip . && cd ../..
+      - cd lambda/order-service && zip -r ../../deployment-packages/order-service.zip . && cd ../..
+      - cd lambda/product-service && zip -r ../../deployment-packages/product-service.zip . && cd ../..
+      - cd lambda/auth-service && zip -r ../../deployment-packages/auth-service.zip . && cd ../..
+      - cd lambda/cognito-authorizer && zip -r ../../deployment-packages/cognito-authorizer.zip . && cd ../..
+      
+  post_build:
+    commands:
+      - echo "Build completed on `date`"
+      - echo "CDK synthesis completed"
+      - ls -la cdk.out/
+      - ls -la deployment-packages/
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: '.'
+  
+cache:
+  paths:
+    - node_modules/**/*
+    - lambda/*/node_modules/**/* 

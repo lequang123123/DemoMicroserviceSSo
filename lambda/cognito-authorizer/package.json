@@ -1,0 +1,23 @@
+{
+  "name": "cognito-authorizer",
+  "version": "1.0.0",
+  "description": "Cognito JWT token authorizer",
+  "main": "cognito-authorizer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1400.0",
+    "jsonwebtoken": "^9.0.0",
+    "jwks-rsa": "^3.0.0"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "cognito",
+    "jwt",
+    "authorizer"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+} 

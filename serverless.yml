@@ -1,0 +1,42 @@
+service: microservice-sso
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 128
+  timeout: 50
+  logRetentionInDays: 7
+  versionFunctions: false
+  
+  environment: ${file(config/environment.yml)}
+  iam: ${file(config/iam.yml)}
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-warmup
+
+custom:
+  warmup:
+    default:
+      enabled: true
+      events:
+        - schedule: rate(5 minutes)
+      concurrency: 1
+
+functions:
+  # Import function configurations
+  - ${file(functions/auth.yml)}
+  - ${file(functions/user.yml)}
+  - ${file(functions/order.yml)}
+  - ${file(functions/product.yml)}
+  - ${file(functions/health.yml)}
+
+resources:
+  # Import resource configurations
+  - ${file(resources/cognito.yml)}
+  - ${file(resources/dynamodb.yml)}
+  - ${file(resources/outputs.yml)} 

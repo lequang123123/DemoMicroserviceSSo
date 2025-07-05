@@ -1,0 +1,149 @@
+Outputs:
+  # Cognito Outputs
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolId
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref CognitoUserPoolClient
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolClientId
+
+  UserPoolDomain:
+    Description: Cognito User Pool Domain
+    Value: !Ref CognitoUserPoolDomain
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolDomain
+
+  UserPoolArn:
+    Description: Cognito User Pool ARN
+    Value: !GetAtt CognitoUserPool.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserPoolArn
+
+  IdentityPoolId:
+    Description: Cognito Identity Pool ID
+    Value: !Ref CognitoIdentityPool
+    Export:
+      Name: ${self:service}-${self:provider.stage}-IdentityPoolId
+
+  # API Gateway Outputs
+  ApiGatewayRestApiId:
+    Description: API Gateway REST API ID
+    Value: !Ref ApiGatewayRestApi
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ApiGatewayRestApiId
+
+  ApiGatewayRestApiUrl:
+    Description: API Gateway REST API URL
+    Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${self:provider.region}.amazonaws.com/${self:provider.stage}'
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ApiGatewayRestApiUrl
+
+  ApiGatewayDomainName:
+    Description: API Gateway Domain Name
+    Value: !Sub '${ApiGatewayRestApi}.execute-api.${self:provider.region}.amazonaws.com'
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ApiGatewayDomainName
+
+  # DynamoDB Outputs
+  UsersTableName:
+    Description: Users DynamoDB Table Name
+    Value: !Ref UsersTable
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UsersTableName
+
+  UsersTableArn:
+    Description: Users DynamoDB Table ARN
+    Value: !GetAtt UsersTable.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UsersTableArn
+
+  OrdersTableName:
+    Description: Orders DynamoDB Table Name
+    Value: !Ref OrdersTable
+    Export:
+      Name: ${self:service}-${self:provider.stage}-OrdersTableName
+
+  OrdersTableArn:
+    Description: Orders DynamoDB Table ARN
+    Value: !GetAtt OrdersTable.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-OrdersTableArn
+
+  ProductsTableName:
+    Description: Products DynamoDB Table Name
+    Value: !Ref ProductsTable
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ProductsTableName
+
+  ProductsTableArn:
+    Description: Products DynamoDB Table ARN
+    Value: !GetAtt ProductsTable.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ProductsTableArn
+
+  SessionsTableName:
+    Description: Sessions DynamoDB Table Name
+    Value: !Ref SessionsTable
+    Export:
+      Name: ${self:service}-${self:provider.stage}-SessionsTableName
+
+  SessionsTableArn:
+    Description: Sessions DynamoDB Table ARN
+    Value: !GetAtt SessionsTable.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-SessionsTableArn
+
+  # Lambda Function Outputs
+  UserServiceLambdaFunctionArn:
+    Description: User Service Lambda Function ARN
+    Value: !GetAtt UserServiceLambdaFunction.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-UserServiceLambdaFunctionArn
+
+  OrderServiceLambdaFunctionArn:
+    Description: Order Service Lambda Function ARN
+    Value: !GetAtt OrderServiceLambdaFunction.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-OrderServiceLambdaFunctionArn
+
+  ProductServiceLambdaFunctionArn:
+    Description: Product Service Lambda Function ARN
+    Value: !GetAtt ProductServiceLambdaFunction.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ProductServiceLambdaFunctionArn
+
+  AuthServiceLambdaFunctionArn:
+    Description: Auth Service Lambda Function ARN
+    Value: !GetAtt AuthServiceLambdaFunction.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-AuthServiceLambdaFunctionArn
+
+  CognitoAuthorizerLambdaFunctionArn:
+    Description: Cognito Authorizer Lambda Function ARN
+    Value: !GetAtt CognitoAuthorizerLambdaFunction.Arn
+    Export:
+      Name: ${self:service}-${self:provider.stage}-CognitoAuthorizerLambdaFunctionArn
+
+  # Environment Information
+  ServiceName:
+    Description: Service Name
+    Value: ${self:service}
+    Export:
+      Name: ${self:service}-${self:provider.stage}-ServiceName
+
+  Stage:
+    Description: Deployment Stage
+    Value: ${self:provider.stage}
+    Export:
+      Name: ${self:service}-${self:provider.stage}-Stage
+
+  Region:
+    Description: AWS Region
+    Value: ${self:provider.region}
+    Export:
+      Name: ${self:service}-${self:provider.stage}-Region 

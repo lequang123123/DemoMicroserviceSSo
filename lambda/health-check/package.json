@@ -1,0 +1,23 @@
+{
+  "name": "health-check-service",
+  "version": "1.0.0",
+  "description": "Health Check Lambda function for microservice SSO",
+  "main": "health-check.js",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint ."
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.57.1"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "health-check",
+    "serverless"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+} 

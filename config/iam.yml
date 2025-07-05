@@ -1,0 +1,43 @@
+role:
+  statements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - !GetAtt UsersTable.Arn
+        - !GetAtt OrdersTable.Arn
+        - !GetAtt ProductsTable.Arn
+        - !GetAtt SessionsTable.Arn
+        - !Sub "${UsersTable.Arn}/index/*"
+        - !Sub "${OrdersTable.Arn}/index/*"
+        - !Sub "${ProductsTable.Arn}/index/*"
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource:
+        - !GetAtt UserServiceLambdaFunction.Arn
+        - !GetAtt OrderServiceLambdaFunction.Arn
+        - !GetAtt ProductServiceLambdaFunction.Arn
+        - !GetAtt AuthServiceLambdaFunction.Arn
+    - Effect: Allow
+      Action:
+        - cognito-idp:AdminGetUser
+        - cognito-idp:AdminCreateUser
+        - cognito-idp:AdminSetUserPassword
+        - cognito-idp:AdminUpdateUserAttributes
+        - cognito-idp:ListUsers
+        - cognito-idp:GetUser
+        - cognito-idp:InitiateAuth
+        - cognito-idp:SignUp
+        - cognito-idp:ConfirmSignUp
+        - cognito-idp:ResendConfirmationCode
+        - cognito-idp:ForgotPassword
+        - cognito-idp:ConfirmForgotPassword
+        - cognito-idp:GlobalSignOut
+      Resource:
+        - !GetAtt CognitoUserPool.Arn 
