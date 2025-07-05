@@ -1,7 +1,9 @@
 # User Service
 userService:
   handler: lambda/user-service/user-service.handler
-  warmup: true
+  # warmup:
+  #   default:
+  #     enabled: true
   events:
     - http:
         path: /users/profile

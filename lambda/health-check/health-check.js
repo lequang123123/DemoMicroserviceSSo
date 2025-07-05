@@ -59,7 +59,7 @@ function checkEnvironmentVariables() {
 
 function checkMemoryUsage() {
     const memoryUsage = process.memoryUsage();
-    const maxMemory = 128 * 1024 * 1024; // 512MB in bytes
+    const maxMemory = 128 * 1024 * 1024; // 128MB in bytes
     const usedPercentage = (memoryUsage.heapUsed / maxMemory) * 100;
     
     return usedPercentage < 90; // Return false if memory usage > 90%

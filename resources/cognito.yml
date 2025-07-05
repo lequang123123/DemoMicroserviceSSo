@@ -1,129 +1,129 @@
 Resources:
-  # Cognito User Pool
+  # Khai báo tài nguyên Cognito User Pool - nơi lưu trữ và quản lý thông tin người dùng
   CognitoUserPool:
-    Type: AWS::Cognito::UserPool
+    Type: AWS::Cognito::UserPool # Loại resource là AWS Cognito User Pool
     Properties:
-      UserPoolName: ${self:service}-${self:provider.stage}-user-pool
-      AutoVerifiedAttributes:
-        - email
+      UserPoolName: ${self:service}-${self:provider.stage}-user-pool # Tên user pool theo định dạng service-stage-user-pool
+      AutoVerifiedAttributes: # Danh sách thuộc tính được xác thực tự động
+        - email # Tự động xác thực email khi người dùng đăng ký
       Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
-      Schema:
-        - Name: email
-          Required: true
-          Mutable: true
-        - Name: given_name
-          Required: true
-          Mutable: true
-        - Name: family_name
-          Required: true
-          Mutable: true
-        - Name: phone_number
-          Required: false
-          Mutable: true
-      UserAttributeUpdateSettings:
-        AttributesRequireVerificationBeforeUpdate:
-          - email
-      AccountRecoverySetting:
-        RecoveryMechanisms:
-          - Name: verified_email
-            Priority: 1
+        PasswordPolicy: # Chính sách mật khẩu
+          MinimumLength: 8 # Độ dài tối thiểu 8 ký tự
+          RequireUppercase: true # Yêu cầu ít nhất 1 chữ hoa
+          RequireLowercase: true # Yêu cầu ít nhất 1 chữ thường
+          RequireNumbers: true # Yêu cầu ít nhất 1 chữ số
+          RequireSymbols: true # Yêu cầu ít nhất 1 ký tự đặc biệt
+      Schema: # Định nghĩa schema cho các thuộc tính người dùng
+        - Name: email # Thuộc tính email
+          Required: true # Bắt buộc phải có
+          Mutable: true # Có thể thay đổi sau khi tạo
+        - Name: given_name # Thuộc tính tên
+          Required: true # Bắt buộc phải có
+          Mutable: true # Có thể thay đổi sau khi tạo
+        - Name: family_name # Thuộc tính họ
+          Required: true # Bắt buộc phải có
+          Mutable: true # Có thể thay đổi sau khi tạo
+        - Name: phone_number # Thuộc tính số điện thoại
+          Required: false # Không bắt buộc
+          Mutable: true # Có thể thay đổi sau khi tạo
+      UserAttributeUpdateSettings: # Cài đặt cập nhật thuộc tính người dùng
+        AttributesRequireVerificationBeforeUpdate: # Thuộc tính cần xác thực trước khi cập nhật
+          - email # Email cần xác thực trước khi thay đổi
+      AccountRecoverySetting: # Cài đặt khôi phục tài khoản
+        RecoveryMechanisms: # Cơ chế khôi phục
+          - Name: verified_email # Sử dụng email đã xác thực
+            Priority: 1 # Độ ưu tiên cao nhất
 
-  # Cognito User Pool Client
+  # Khai báo Cognito User Pool Client - ứng dụng client để tương tác với User Pool
   CognitoUserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
+    Type: AWS::Cognito::UserPoolClient # Loại resource là AWS Cognito User Pool Client
     Properties:
-      UserPoolId: !Ref CognitoUserPool
-      ClientName: ${self:service}-${self:provider.stage}-client
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ADMIN_NO_SRP_AUTH
-        - USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-      PreventUserExistenceErrors: ENABLED
-      SupportedIdentityProviders:
-        - COGNITO
-      CallbackURLs:
-        - https://localhost:3000/callback
-        - https://example.com/callback
-      LogoutURLs:
-        - https://localhost:3000/logout
-        - https://example.com/logout
-      AllowedOAuthFlows:
-        - code
-        - implicit
-      AllowedOAuthScopes:
-        - openid
-        - email
-        - profile
-      AllowedOAuthFlowsUserPoolClient: true
-      ReadAttributes:
-        - email
-        - given_name
-        - family_name
-        - phone_number
-      WriteAttributes:
-        - email
-        - given_name
-        - family_name
-        - phone_number
+      UserPoolId: !Ref CognitoUserPool # Tham chiếu đến User Pool đã tạo ở trên
+      ClientName: ${self:service}-${self:provider.stage}-client # Tên client theo định dạng service-stage-client
+      GenerateSecret: false # Không tạo client secret (dành cho public client như web app)
+      ExplicitAuthFlows: # Các phương thức xác thực được phép
+        - ADMIN_NO_SRP_AUTH # Xác thực admin không cần SRP
+        - USER_PASSWORD_AUTH # Xác thực bằng username/password
+        - ALLOW_REFRESH_TOKEN_AUTH # Cho phép refresh token
+        - ALLOW_USER_SRP_AUTH # Cho phép SRP authentication
+      PreventUserExistenceErrors: ENABLED # Ngăn chặn lỗi tiết lộ thông tin người dùng tồn tại
+      SupportedIdentityProviders: # Các nhà cung cấp danh tính được hỗ trợ
+        - COGNITO # Sử dụng Cognito làm identity provider
+      CallbackURLs: # URL callback sau khi đăng nhập thành công
+        - https://localhost:3000/callback # URL cho môi trường development
+        - https://example.com/callback # URL cho môi trường production
+      LogoutURLs: # URL redirect sau khi đăng xuất
+        - https://localhost:3000/logout # URL cho môi trường development
+        - https://example.com/logout # URL cho môi trường production
+      AllowedOAuthFlows: # Các OAuth flow được phép
+        - code # Authorization code grant
+        - implicit # Implicit grant
+      AllowedOAuthScopes: # Các OAuth scope được phép
+        - openid # OpenID Connect scope
+        - email # Email scope
+        - profile # Profile scope
+      AllowedOAuthFlowsUserPoolClient: true # Kích hoạt OAuth flows cho client này
+      ReadAttributes: # Thuộc tính có thể đọc
+        - email # Có thể đọc email
+        - given_name # Có thể đọc tên
+        - family_name # Có thể đọc họ
+        - phone_number # Có thể đọc số điện thoại
+      WriteAttributes: # Thuộc tính có thể ghi
+        - email # Có thể ghi email
+        - given_name # Có thể ghi tên
+        - family_name # Có thể ghi họ
+        - phone_number # Có thể ghi số điện thoại
 
-  # Cognito User Pool Domain
+  # Khai báo Cognito User Pool Domain - domain cho Hosted UI
   CognitoUserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
+    Type: AWS::Cognito::UserPoolDomain # Loại resource là AWS Cognito User Pool Domain
     Properties:
-      UserPoolId: !Ref CognitoUserPool
-      Domain: ${self:service}-${self:provider.stage}-${self:provider.region}
+      UserPoolId: !Ref CognitoUserPool # Tham chiếu đến User Pool đã tạo
+      Domain: ${self:service}-${self:provider.stage}-${self:provider.region} # Tên domain theo định dạng service-stage-region
 
-  # Cognito Identity Pool
+  # Khai báo Cognito Identity Pool - để lấy temporary AWS credentials
   CognitoIdentityPool:
-    Type: AWS::Cognito::IdentityPool
+    Type: AWS::Cognito::IdentityPool # Loại resource là AWS Cognito Identity Pool
     Properties:
-      IdentityPoolName: ${self:service}-${self:provider.stage}-identity-pool
-      AllowUnauthenticatedIdentities: false
-      CognitoIdentityProviders:
-        - ClientId: !Ref CognitoUserPoolClient
-          ProviderName: !GetAtt CognitoUserPool.ProviderName
+      IdentityPoolName: ${self:service}-${self:provider.stage}-identity-pool # Tên identity pool
+      AllowUnauthenticatedIdentities: false # Không cho phép danh tính không xác thực
+      CognitoIdentityProviders: # Các nhà cung cấp danh tính Cognito
+        - ClientId: !Ref CognitoUserPoolClient # Tham chiếu đến User Pool Client
+          ProviderName: !GetAtt CognitoUserPool.ProviderName # Lấy provider name từ User Pool
 
-  # Cognito Identity Pool Roles
+  # Khai báo vai trò cho Identity Pool
   CognitoIdentityPoolRoles:
-    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Type: AWS::Cognito::IdentityPoolRoleAttachment # Loại resource để gắn role với identity pool
     Properties:
-      IdentityPoolId: !Ref CognitoIdentityPool
+      IdentityPoolId: !Ref CognitoIdentityPool # Tham chiếu đến Identity Pool
       Roles:
-        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn # Vai trò cho người dùng đã xác thực
 
-  # IAM Role for Authenticated Users
+  # Khai báo IAM Role cho người dùng đã xác thực
   CognitoAuthenticatedRole:
-    Type: AWS::IAM::Role
+    Type: AWS::IAM::Role # Loại resource là AWS IAM Role
     Properties:
-      RoleName: ${self:service}-${self:provider.stage}-cognito-authenticated-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+      RoleName: ${self:service}-${self:provider.stage}-cognito-authenticated-role # Tên role
+      AssumeRolePolicyDocument: # Chính sách assume role
+        Version: '2012-10-17' # Phiên bản policy document
         Statement:
-          - Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
+          - Effect: Allow # Cho phép
+            Principal: # Principal được phép assume role
+              Federated: cognito-identity.amazonaws.com # Cognito Identity service
+            Action: sts:AssumeRoleWithWebIdentity # Action assume role với web identity
+            Condition: # Điều kiện để assume role
               StringEquals:
-                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPool
+                'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPool # Audience phải là identity pool này
               'ForAnyValue:StringLike':
-                'cognito-identity.amazonaws.com:amr': authenticated
-      Policies:
-        - PolicyName: CognitoAuthenticatedPolicy
+                'cognito-identity.amazonaws.com:amr': authenticated # Chỉ cho phép người dùng đã xác thực
+      Policies: # Các policy gắn với role
+        - PolicyName: CognitoAuthenticatedPolicy # Tên policy
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: '2012-10-17' # Phiên bản policy document
             Statement:
-              - Effect: Allow
-                Action:
-                  - mobileanalytics:PutEvents
-                  - cognito-sync:*
-                  - cognito-identity:*
-                Resource: '*' 
+              - Effect: Allow # Cho phép
+                Action: # Các action được phép
+                  - mobileanalytics:PutEvents # Gửi events cho mobile analytics
+                  - cognito-sync:* # Tất cả action của cognito-sync
+                  - cognito-identity:* # Tất cả action của cognito-identity
+                Resource: '*' # Áp dụng cho tất cả resource 

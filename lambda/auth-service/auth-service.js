@@ -6,7 +6,7 @@ const lambda = new AWS.Lambda();
 const SESSIONS_TABLE = process.env.SESSIONS_TABLE_NAME;
 const _USER_POOL_ID = process.env.USER_POOL_ID;
 const USER_POOL_CLIENT_ID = process.env.USER_POOL_CLIENT_ID;
-const USER_SERVICE_ARN = process.env.USER_SERVICE_ARN;
+const USER_SERVICE_NAME = process.env.USER_SERVICE_NAME;
 
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event, null, 2));
@@ -155,7 +155,7 @@ async function register(registerData) {
         
         // Create user in DynamoDB via User Service
         const userServiceParams = {
-            FunctionName: USER_SERVICE_ARN,
+            FunctionName: USER_SERVICE_NAME,
             InvocationType: 'RequestResponse',
             Payload: JSON.stringify({
                 action: 'createUser',
@@ -374,7 +374,7 @@ async function resendVerification(resendData) {
 async function getUserProfile(userId) {
     try {
         const params = {
-            FunctionName: USER_SERVICE_ARN,
+            FunctionName: USER_SERVICE_NAME,
             InvocationType: 'RequestResponse',
             Payload: JSON.stringify({
                 action: 'getProfile',

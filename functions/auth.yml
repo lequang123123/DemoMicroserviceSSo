@@ -2,14 +2,16 @@
 cognitoAuthorizer:
   handler: lambda/cognito-authorizer/cognito-authorizer.handler
   environment:
-    USER_SERVICE_ARN: !GetAtt UserServiceLambdaFunction.Arn
+    USER_SERVICE_NAME: ${self:service}-${self:provider.stage}-userService
 
 # Auth Service
 authService:
   handler: lambda/auth-service/auth-service.handler
-  warmup: true
+  # warmup:
+  #   default:
+  #     enabled: true
   environment:
-    USER_SERVICE_ARN: !GetAtt UserServiceLambdaFunction.Arn
+    USER_SERVICE_NAME: ${self:service}-${self:provider.stage}-userService
   events:
     - http:
         path: /auth/login

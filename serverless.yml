@@ -8,7 +8,7 @@ provider:
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
   memorySize: 128
-  timeout: 50
+  timeout: 30
   logRetentionInDays: 7
   versionFunctions: false
   
@@ -17,15 +17,15 @@ provider:
 
 plugins:
   - serverless-offline
-  - serverless-plugin-warmup
+  # - serverless-plugin-warmup
 
-custom:
-  warmup:
-    default:
-      enabled: true
-      events:
-        - schedule: rate(5 minutes)
-      concurrency: 1
+# custom:
+#   warmup:
+#     default:
+#       enabled: true
+#       events:
+#         - schedule: rate(5 minutes)
+#       concurrency: 1
 
 functions:
   # Import function configurations

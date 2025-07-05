@@ -1,122 +1,122 @@
 Resources:
-  # Users Table
+  # Khai báo bảng Users - lưu trữ thông tin người dùng
   UsersTable:
-    Type: AWS::DynamoDB::Table
+    Type: AWS::DynamoDB::Table # Loại resource là DynamoDB Table
     Properties:
-      TableName: ${self:service}-${self:provider.stage}-users
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: userId
-          AttributeType: S
-        - AttributeName: email
-          AttributeType: S
-      KeySchema:
-        - AttributeName: userId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: EmailIndex
-          KeySchema:
-            - AttributeName: email
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-      StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: ${self:provider.stage, 'false'}
-      Tags:
-        - Key: Service
-          Value: ${self:service}
-        - Key: Environment
-          Value: ${self:provider.stage}
+      TableName: ${self:service}-${self:provider.stage}-users # Tên bảng theo định dạng service-stage-users
+      BillingMode: PAY_PER_REQUEST # Chế độ thanh toán theo yêu cầu (không cần chỉ định capacity)
+      AttributeDefinitions: # Định nghĩa các thuộc tính
+        - AttributeName: userId # Tên thuộc tính userId
+          AttributeType: S # Kiểu dữ liệu String
+        - AttributeName: email # Tên thuộc tính email
+          AttributeType: S # Kiểu dữ liệu String
+      KeySchema: # Định nghĩa khóa chính
+        - AttributeName: userId # Sử dụng userId làm khóa chính
+          KeyType: HASH # Khóa phân vùng (partition key)
+      GlobalSecondaryIndexes: # Chỉ mục phụ toàn cục
+        - IndexName: EmailIndex # Tên chỉ mục cho email
+          KeySchema: # Khóa của chỉ mục
+            - AttributeName: email # Sử dụng email làm khóa
+              KeyType: HASH # Khóa phân vùng của chỉ mục
+          Projection: # Dự báo dữ liệu
+            ProjectionType: ALL # Bao gồm tất cả thuộc tính
+      StreamSpecification: # Cấu hình stream
+        StreamViewType: NEW_AND_OLD_IMAGES # Ghi lại cả dữ liệu cũ và mới khi có thay đổi
+      PointInTimeRecoverySpecification: # Cấu hình khôi phục theo thời gian
+        PointInTimeRecoveryEnabled: ${self:provider.stage, 'false'} # Bật khôi phục theo thời gian cho môi trường production
+      Tags: # Thẻ gắn với bảng
+        - Key: Service # Tên thẻ
+          Value: ${self:service} # Tên service
+        - Key: Environment # Tên thẻ
+          Value: ${self:provider.stage} # Môi trường deploy
 
-  # Orders Table
+  # Khai báo bảng Orders - lưu trữ thông tin đơn hàng
   OrdersTable:
-    Type: AWS::DynamoDB::Table
+    Type: AWS::DynamoDB::Table # Loại resource là DynamoDB Table
     Properties:
-      TableName: ${self:service}-${self:provider.stage}-orders
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: orderId
-          AttributeType: S
-        - AttributeName: createdAt
-          AttributeType: S
-        - AttributeName: userId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: orderId
-          KeyType: HASH
-        - AttributeName: createdAt
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: UserIdIndex
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-            - AttributeName: createdAt
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-      StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: ${self:provider.stage, 'false'}
-      Tags:
-        - Key: Service
-          Value: ${self:service}
-        - Key: Environment
-          Value: ${self:provider.stage}
+      TableName: ${self:service}-${self:provider.stage}-orders # Tên bảng theo định dạng service-stage-orders
+      BillingMode: PAY_PER_REQUEST # Chế độ thanh toán theo yêu cầu
+      AttributeDefinitions: # Định nghĩa các thuộc tính
+        - AttributeName: orderId # Tên thuộc tính orderId
+          AttributeType: S # Kiểu dữ liệu String
+        - AttributeName: createdAt # Tên thuộc tính createdAt
+          AttributeType: S # Kiểu dữ liệu String
+        - AttributeName: userId # Tên thuộc tính userId
+          AttributeType: S # Kiểu dữ liệu String
+      KeySchema: # Định nghĩa khóa chính composite
+        - AttributeName: orderId # Khóa phân vùng
+          KeyType: HASH # Khóa phân vùng (partition key)
+        - AttributeName: createdAt # Khóa sắp xếp
+          KeyType: RANGE # Khóa sắp xếp (sort key)
+      GlobalSecondaryIndexes: # Chỉ mục phụ toàn cục
+        - IndexName: UserIdIndex # Tên chỉ mục cho userId
+          KeySchema: # Khóa của chỉ mục
+            - AttributeName: userId # Khóa phân vùng
+              KeyType: HASH # Khóa phân vùng
+            - AttributeName: createdAt # Khóa sắp xếp
+              KeyType: RANGE # Khóa sắp xếp
+          Projection: # Dự báo dữ liệu
+            ProjectionType: ALL # Bao gồm tất cả thuộc tính
+      StreamSpecification: # Cấu hình stream
+        StreamViewType: NEW_AND_OLD_IMAGES # Ghi lại cả dữ liệu cũ và mới khi có thay đổi
+      PointInTimeRecoverySpecification: # Cấu hình khôi phục theo thời gian
+        PointInTimeRecoveryEnabled: ${self:provider.stage, 'false'} # Bật khôi phục theo thời gian cho môi trường production
+      Tags: # Thẻ gắn với bảng
+        - Key: Service # Tên thẻ
+          Value: ${self:service} # Tên service
+        - Key: Environment # Tên thẻ
+          Value: ${self:provider.stage} # Môi trường deploy
 
-  # Products Table
+  # Khai báo bảng Products - lưu trữ thông tin sản phẩm
   ProductsTable:
-    Type: AWS::DynamoDB::Table
+    Type: AWS::DynamoDB::Table # Loại resource là DynamoDB Table
     Properties:
-      TableName: ${self:service}-${self:provider.stage}-products
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: productId
-          AttributeType: S
-        - AttributeName: category
-          AttributeType: S
-        - AttributeName: createdAt
-          AttributeType: S
-      KeySchema:
-        - AttributeName: productId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: CategoryIndex
-          KeySchema:
-            - AttributeName: category
-              KeyType: HASH
-            - AttributeName: createdAt
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: ${self:provider.stage, 'false'}
-      Tags:
-        - Key: Service
-          Value: ${self:service}
-        - Key: Environment
-          Value: ${self:provider.stage}
+      TableName: ${self:service}-${self:provider.stage}-products # Tên bảng theo định dạng service-stage-products
+      BillingMode: PAY_PER_REQUEST # Chế độ thanh toán theo yêu cầu
+      AttributeDefinitions: # Định nghĩa các thuộc tính
+        - AttributeName: productId # Tên thuộc tính productId
+          AttributeType: S # Kiểu dữ liệu String
+        - AttributeName: category # Tên thuộc tính category
+          AttributeType: S # Kiểu dữ liệu String
+        - AttributeName: createdAt # Tên thuộc tính createdAt
+          AttributeType: S # Kiểu dữ liệu String
+      KeySchema: # Định nghĩa khóa chính
+        - AttributeName: productId # Sử dụng productId làm khóa chính
+          KeyType: HASH # Khóa phân vùng (partition key)
+      GlobalSecondaryIndexes: # Chỉ mục phụ toàn cục
+        - IndexName: CategoryIndex # Tên chỉ mục cho category
+          KeySchema: # Khóa của chỉ mục
+            - AttributeName: category # Khóa phân vùng
+              KeyType: HASH # Khóa phân vùng
+            - AttributeName: createdAt # Khóa sắp xếp
+              KeyType: RANGE # Khóa sắp xếp
+          Projection: # Dự báo dữ liệu
+            ProjectionType: ALL # Bao gồm tất cả thuộc tính
+      PointInTimeRecoverySpecification: # Cấu hình khôi phục theo thời gian
+        PointInTimeRecoveryEnabled: ${self:provider.stage, 'false'} # Bật khôi phục theo thời gian cho môi trường production
+      Tags: # Thẻ gắn với bảng
+        - Key: Service # Tên thẻ
+          Value: ${self:service} # Tên service
+        - Key: Environment # Tên thẻ
+          Value: ${self:provider.stage} # Môi trường deploy
 
-  # Sessions Table
+  # Khai báo bảng Sessions - lưu trữ thông tin phiên đăng nhập
   SessionsTable:
-    Type: AWS::DynamoDB::Table
+    Type: AWS::DynamoDB::Table # Loại resource là DynamoDB Table
     Properties:
-      TableName: ${self:service}-${self:provider.stage}-sessions
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: sessionId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: sessionId
-          KeyType: HASH
-      TimeToLiveSpecification:
-        AttributeName: ttl
-        Enabled: true
-      Tags:
-        - Key: Service
-          Value: ${self:service}
-        - Key: Environment
-          Value: ${self:provider.stage} 
+      TableName: ${self:service}-${self:provider.stage}-sessions # Tên bảng theo định dạng service-stage-sessions
+      BillingMode: PAY_PER_REQUEST # Chế độ thanh toán theo yêu cầu
+      AttributeDefinitions: # Định nghĩa các thuộc tính
+        - AttributeName: sessionId # Tên thuộc tính sessionId
+          AttributeType: S # Kiểu dữ liệu String
+      KeySchema: # Định nghĩa khóa chính
+        - AttributeName: sessionId # Sử dụng sessionId làm khóa chính
+          KeyType: HASH # Khóa phân vùng (partition key)
+      TimeToLiveSpecification: # Cấu hình TTL (Time To Live)
+        AttributeName: ttl # Tên thuộc tính chứa thời gian hết hạn
+        Enabled: true # Bật TTL để tự động xóa bản ghi hết hạn
+      Tags: # Thẻ gắn với bảng
+        - Key: Service # Tên thẻ
+          Value: ${self:service} # Tên service
+        - Key: Environment # Tên thẻ
+          Value: ${self:provider.stage} # Môi trường deploy 

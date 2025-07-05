@@ -3,7 +3,7 @@ const dynamodb = new AWS.DynamoDB.DocumentClient();
 const lambda = new AWS.Lambda();
 
 const PRODUCTS_TABLE = process.env.PRODUCTS_TABLE_NAME;
-const USER_SERVICE_ARN = process.env.USER_SERVICE_ARN;
+const USER_SERVICE_NAME = process.env.USER_SERVICE_NAME;
 
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event, null, 2));
@@ -299,7 +299,7 @@ async function searchProducts(searchTerm) {
 async function isUserAdmin(userId) {
     try {
         const params = {
-            FunctionName: USER_SERVICE_ARN,
+            FunctionName: USER_SERVICE_NAME,
             InvocationType: 'RequestResponse',
             Payload: JSON.stringify({
                 action: 'getProfile',

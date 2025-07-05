@@ -14,37 +14,107 @@ Hệ thống bao gồm các microservice sau:
 
 ## 🏗️ Kiến trúc
 
+### Sơ đồ Hệ thống
+
+```mermaid
+graph TB
+    %% Client Layer
+    Client[Client Applications<br/>Web/Mobile Apps]
+    
+    %% API Gateway Layer
+    APIGateway[API Gateway<br/>REST API Endpoints]
+    
+    %% Authentication Layer
+    Cognito[Amazon Cognito<br/>User Pool + Identity Pool]
+    Authorizer[Lambda Authorizer<br/>JWT Validation]
+    
+    %% Microservices Layer
+    AuthService[Auth Service<br/>Login/Register/Refresh]
+    UserService[User Service<br/>Profile Management]
+    OrderService[Order Service<br/>Order Management]
+    ProductService[Product Service<br/>Product CRUD]
+    HealthCheck[Health Check<br/>Service Status]
+    
+    %% Database Layer
+    UsersDB[Users Table<br/>DynamoDB]
+    OrdersDB[Orders Table<br/>DynamoDB]
+    ProductsDB[Products Table<br/>DynamoDB]
+    SessionsDB[Sessions Table<br/>DynamoDB]
+    
+    %% Infrastructure Layer
+    CloudFormation[CloudFormation<br/>Infrastructure as Code]
+    
+    %% Client interactions
+    Client -->|HTTPS Requests| APIGateway
+    
+    %% API Gateway routing
+    APIGateway -->|Authorization| Authorizer
+    APIGateway -->|/auth/*| AuthService
+    APIGateway -->|/users/*| UserService
+    APIGateway -->|/orders/*| OrderService
+    APIGateway -->|/products/*| ProductService
+    APIGateway -->|/health| HealthCheck
+    
+    %% Authentication flow
+    Authorizer -->|Validate JWT| Cognito
+    AuthService -->|User Authentication| Cognito
+    
+    %% Service to database connections
+    AuthService -->|Sessions| SessionsDB
+    UserService -->|User Data| UsersDB
+    OrderService -->|Order Data| OrdersDB
+    OrderService -->|User Validation| UserService
+    ProductService -->|Product Data| ProductsDB
+    
+    %% Service to service communication
+    OrderService -.->|Internal Call| UserService
+    
+    %% Infrastructure management
+    CloudFormation -->|Manages| APIGateway
+    CloudFormation -->|Manages| Cognito
+    CloudFormation -->|Manages| AuthService
+    CloudFormation -->|Manages| UserService
+    CloudFormation -->|Manages| OrderService
+    CloudFormation -->|Manages| ProductService
+    CloudFormation -->|Manages| HealthCheck
+    CloudFormation -->|Manages| UsersDB
+    CloudFormation -->|Manages| OrdersDB
+    CloudFormation -->|Manages| ProductsDB
+    CloudFormation -->|Manages| SessionsDB
+    
+    %% Styling
+    classDef clientLayer fill:#e1f5fe
+    classDef apiLayer fill:#f3e5f5
+    classDef authLayer fill:#fff3e0
+    classDef serviceLayer fill:#e8f5e8
+    classDef dataLayer fill:#fce4ec
+    classDef infraLayer fill:#f1f8e9
+    
+    class Client clientLayer
+    class APIGateway apiLayer
+    class Cognito,Authorizer authLayer
+    class AuthService,UserService,OrderService,ProductService,HealthCheck serviceLayer
+    class UsersDB,OrdersDB,ProductsDB,SessionsDB dataLayer
+    class CloudFormation infraLayer
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend App  │    │   Mobile App    │    │   3rd Party     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │  API Gateway    │
-                    └─────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │ Lambda Authorizer│
-                    └─────────────────┘
-                                 │
-           ┌─────────────────────┼─────────────────────┐
-           │                     │                     │
-  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-  │Auth Service │    │User Service │    │Order Service│
-  └─────────────┘    └─────────────┘    └─────────────┘
-           │                     │                     │
-           └─────────────────────┼─────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   DynamoDB      │
-                    └─────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   Cognito       │
-                    └─────────────────┘
-```
+
+### Mô tả Components
+
+- **🌐 Client Layer**: Các ứng dụng frontend (web/mobile) tương tác với API
+- **🚪 API Gateway**: Điểm entry duy nhất cho tất cả requests, handle routing và CORS
+- **🔐 Authentication**: Cognito quản lý user authentication, Lambda Authorizer validate JWT
+- **⚙️ Microservices**: Các Lambda functions xử lý business logic riêng biệt
+- **💾 Database**: DynamoDB tables lưu trữ data của từng service
+- **🏗️ Infrastructure**: CloudFormation manage toàn bộ AWS resources
+
+### Luồng xử lý Request
+
+1. **Client** gửi request đến **API Gateway**
+2. **API Gateway** check authorization qua **Lambda Authorizer**
+3. **Lambda Authorizer** validate JWT token với **Cognito**
+4. Request được route đến **Lambda Function** tương ứng
+5. **Lambda Function** xử lý business logic và tương tác với **DynamoDB**
+6. Response được trả về client qua **API Gateway**
 
 ## 🛠️ Cài đặt
 
@@ -57,7 +127,11 @@ Hệ thống bao gồm các microservice sau:
 ### Cài đặt dependencies
 
 ```bash
+# Cài đặt dependencies cho root project
 npm install
+
+# Cài đặt dependencies cho tất cả lambda functions
+npm run install:all
 ```
 
 ### Cấu hình Environment Variables
@@ -73,6 +147,11 @@ cp env.example .env
 nano .env
 ```
 
+⚠️ **Lưu ý**: 
+- File `.env` chỉ dùng cho reference, không được load tự động
+- Environment variables được config trong `config/environment.yml`
+- Để test local, có thể cần mock AWS services hoặc dùng local DynamoDB
+
 ### Cấu hình AWS
 
 ```bash
@@ -85,17 +164,30 @@ export AWS_PROFILE=your-profile-name
 
 ## 🚀 Deployment
 
-### Development Environment
+### Local Development (Test Local)
 
 ```bash
-# Deploy toàn bộ stack
+# Chạy local development server (không deploy lên AWS)
+npm run dev
+# hoặc
+sls offline start
+
+# Server sẽ chạy tại http://localhost:3000
+```
+
+### Development Environment (Deploy lên AWS)
+
+```bash
+# Deploy toàn bộ stack lên AWS
 npm run deploy
 
 # Hoặc sử dụng lệnh serverless trực tiếp
 sls deploy --stage dev
+
+# Sẽ tạo API Gateway endpoint: https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev
 ```
 
-### Production Environment
+### Production Environment (Deploy lên AWS)
 
 ```bash
 # Deploy production
@@ -103,42 +195,111 @@ npm run deploy:prod
 
 # Hoặc
 sls deploy --stage prod
+
+# Sẽ tạo API Gateway endpoint: https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/prod
 ```
 
 ### Deploy từng function riêng lẻ
 
 ```bash
-# Deploy một function cụ thể
+# Deploy một function cụ thể (chỉ cập nhật code function)
 sls deploy function --function authService
 sls deploy function --function userService
 sls deploy function --function orderService
 sls deploy function --function productService
 ```
 
+### Kiểm tra deployment
+
+```bash
+# Xem thông tin stack đã deploy
+sls info
+
+# Test API sau khi deploy
+curl https://your-api-url/health
+```
+
+### NPM Scripts có sẵn
+
+```bash
+# 🧪 Development & Testing
+npm run dev                    # Chạy local development server
+npm run offline               # Chạy serverless offline  
+npm test                      # Chạy tests
+npm run lint                  # Kiểm tra code quality
+
+# 🚀 Deployment
+npm run deploy                # Deploy development environment
+npm run deploy:dev            # Deploy development environment
+npm run deploy:prod           # Deploy production environment
+
+# 📊 Monitoring & Debug
+npm run info                  # Xem thông tin stack
+npm run logs                  # Xem logs function
+npm run logs:tail             # Xem logs realtime
+npm run invoke                # Invoke function trên AWS
+npm run invoke:local          # Invoke function locally
+
+# 🧹 Cleanup
+npm run remove                # Remove stack
+npm run remove:dev            # Remove development stack
+npm run remove:prod           # Remove production stack
+
+# 🔧 Utilities
+npm run validate              # Validate serverless config
+npm run package               # Package functions
+npm run print                 # Print compiled template
+npm run install:all           # Install dependencies cho tất cả lambda functions
+```
+
 ## 🧪 Testing
 
 ### Local Development
 
+⚠️ **Lưu ý**: Đây là serverless framework chạy trên AWS cloud, không phải ứng dụng local. Tuy nhiên, bạn có thể test local bằng `serverless-offline`:
+
 ```bash
-# Chạy serverless offline
+# Cài đặt serverless-offline (đã có trong package.json)
+npm install
+
+# Chạy local development server
 npm run dev
 
-# Hoặc
+# Hoặc sử dụng lệnh serverless trực tiếp
 sls offline start
+
+# Server sẽ chạy tại http://localhost:3000
 ```
 
-### Testing các endpoint
+### Local Testing với Serverless Offline
 
 ```bash
-# Health check
+# Health check (local)
+curl http://localhost:3000/health
+
+# Register user (local)
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"TestPassword123!","given_name":"Test","family_name":"User"}'
+
+# Login (local)
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"TestPassword123!"}'
+```
+
+### Testing trên AWS (sau khi deploy)
+
+```bash
+# Health check (AWS)
 curl https://your-api-url/health
 
-# Register user
+# Register user (AWS)
 curl -X POST https://your-api-url/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"TestPassword123!","given_name":"Test","family_name":"User"}'
 
-# Login
+# Login (AWS)
 curl -X POST https://your-api-url/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"TestPassword123!"}'
@@ -146,6 +307,19 @@ curl -X POST https://your-api-url/auth/login \
 # Get user profile (cần token)
 curl -X GET https://your-api-url/users/profile \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Lấy API URL sau khi deploy
+
+```bash
+# Xem thông tin stack sau khi deploy
+sls info
+
+# Output sẽ hiển thị:
+# endpoints:
+#   GET - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev/health
+#   POST - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev/auth/register
+#   ...
 ```
 
 ## 📁 Cấu trúc dự án
@@ -225,17 +399,33 @@ microserviceSSo/
 
 ## 🎯 Features
 
-- ✅ JWT Authentication với Cognito
+### 🔐 Authentication & Authorization
+- ✅ JWT Authentication với AWS Cognito
 - ✅ Role-based Access Control (RBAC)
+- ✅ Lambda Authorizer cho API Gateway
+- ✅ Session Management với DynamoDB
+
+### 🏗️ Architecture & Infrastructure
 - ✅ Microservice Architecture
-- ✅ Serverless Framework
-- ✅ DynamoDB NoSQL Database
+- ✅ Serverless Framework (Infrastructure as Code)
+- ✅ AWS Lambda Functions
 - ✅ API Gateway với CORS
-- ✅ Lambda Authorizer
-- ✅ CloudWatch Logging
-- ✅ Environment-based Deployment
+- ✅ DynamoDB NoSQL Database
+- ✅ CloudFormation Templates
+
+### 🛠️ Development & Operations
+- ✅ Environment-based Deployment (dev/prod)
+- ✅ Modular Configuration (tách file yaml)
+- ✅ CloudWatch Logging & Monitoring
 - ✅ Health Check Endpoint
-- ✅ Modular Configuration
+- ✅ Local Development với Serverless Offline
+- ✅ Code Quality với ESLint
+
+### 🚀 Scalability & Performance
+- ✅ Auto-scaling với Lambda
+- ✅ DynamoDB on-demand billing
+- ✅ Function Warmup để giảm cold start
+- ✅ Service-to-Service Communication
 
 ## 🔧 Monitoring & Logging
 
@@ -279,6 +469,7 @@ sls logs --function orderService
 2. **Function Timeout**: Tăng timeout trong serverless.yml
 3. **DynamoDB Access**: Đảm bảo IAM permissions cho DynamoDB
 4. **CORS Issues**: Kiểm tra CORS configuration
+5. **Local Development**: Serverless offline không connect được AWS resources thực
 
 ### Debug Commands
 
@@ -286,11 +477,64 @@ sls logs --function orderService
 # Kiểm tra stack info
 sls info
 
-# Invoke function locally
+# Invoke function locally (không cần deploy)
 sls invoke local --function authService --data '{"body":"{\"email\":\"test@example.com\"}"}'
 
-# Remove stack
+# Invoke function trên AWS (sau khi deploy)
+sls invoke --function authService --data '{"body":"{\"email\":\"test@example.com\"}"}'
+
+# Xem logs realtime
+sls logs --function authService --tail
+
+# Remove stack hoàn toàn
 sls remove
+```
+
+### Local Development với Serverless Offline
+
+```bash
+# Chạy offline với custom port
+sls offline start --port 4000
+
+# Chạy offline với specific stage
+sls offline start --stage local
+
+# Debug offline
+sls offline start --verbose
+```
+
+### Sự khác biệt giữa Local và AWS
+
+| Khía cạnh | Local (Serverless Offline) | AWS (Deployed) |
+|-----------|----------------------------|----------------|
+| **Database** | Mock DynamoDB hoặc Local DynamoDB | AWS DynamoDB |
+| **Authentication** | Mock Cognito | AWS Cognito |
+| **API Gateway** | Local server | AWS API Gateway |
+| **Permissions** | Không cần IAM | Cần IAM roles |
+| **Cold Start** | Không có | Có cold start |
+| **Monitoring** | Console logs | CloudWatch |
+
+### Limitations của Local Development
+
+⚠️ **Một số features không hoạt động khi chạy local:**
+
+1. **Cognito Integration**: Không thể connect đến AWS Cognito
+2. **DynamoDB**: Cần setup Local DynamoDB hoặc mock
+3. **IAM Roles**: Không có IAM validation
+4. **Service-to-Service**: Lambda invoke giữa các services cần config thêm
+5. **Environment Variables**: Một số env vars chỉ có trong AWS environment
+
+### Recommendations cho Local Development
+
+```bash
+# Sử dụng mock data cho testing
+# Hoặc setup local DynamoDB
+docker run -p 8000:8000 amazon/dynamodb-local
+
+# Sử dụng environment variables local
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_REGION=us-east-1
 ```
 
 ## 🤝 Contributing
@@ -309,6 +553,28 @@ MIT License - xem file LICENSE để biết thêm details.
 
 - Email: your-email@example.com
 - GitHub Issues: [Create an issue](https://github.com/your-repo/issues)
+
+## 🎉 Tại sao chọn Serverless Framework?
+
+### 💰 Chi phí
+- **Pay-as-you-go**: Chỉ trả tiền khi có request
+- **No server maintenance**: Không phải quản lý server
+- **Auto-scaling**: Tự động scale theo traffic
+
+### 🚀 Performance
+- **Fast deployment**: Deploy nhanh chóng với CloudFormation
+- **Global distribution**: API Gateway có sẵn CDN
+- **Managed services**: AWS quản lý infrastructure
+
+### 🛡️ Security
+- **IAM integration**: Tích hợp sẵn với AWS IAM
+- **VPC support**: Có thể chạy trong VPC
+- **Encryption**: Tự động encrypt data
+
+### 🧪 Development
+- **Local testing**: Test local với serverless offline
+- **Multiple environments**: Dễ dàng deploy multiple stages
+- **Infrastructure as Code**: Tất cả config trong code
 
 ## 🔄 CI/CD
 
@@ -330,13 +596,31 @@ npm run deploy
 
 ## 🌟 Roadmap
 
-- [ ] Add unit tests
+### 🧪 Testing & Development
+- [ ] Add unit tests với Jest
+- [ ] Implement integration tests
+- [ ] Setup local DynamoDB container
+- [ ] Add mock Cognito service
+- [ ] Improve local development experience
+
+### 🚀 Features
 - [ ] Implement API rate limiting
 - [ ] Add email notifications
-- [ ] Implement caching layer
+- [ ] Implement caching layer (Redis/ElastiCache)
+- [ ] Add file upload functionality
+- [ ] Implement real-time notifications (WebSocket)
+
+### 📊 Monitoring & Operations
 - [ ] Add monitoring dashboard
 - [ ] Implement backup strategy
 - [ ] Add CI/CD pipeline
 - [ ] Performance optimization
 - [ ] Security audit
+- [ ] Add APM (Application Performance Monitoring)
+
+### 📚 Documentation
+- [ ] Add API documentation (Swagger/OpenAPI)
+- [ ] Create deployment guides
+- [ ] Add troubleshooting guides
+- [ ] Create video tutorials
 - [ ] Documentation improvements 

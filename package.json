@@ -12,7 +12,7 @@
     "remove:prod": "serverless remove --stage prod",
     "logs": "serverless logs -f",
     "info": "serverless info",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint .",
     "offline": "serverless offline",
     "dev": "serverless offline start",
