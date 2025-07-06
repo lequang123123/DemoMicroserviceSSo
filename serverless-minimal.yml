@@ -1,0 +1,207 @@
+service: microservice-sso-minimal
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    USER_POOL_ID: !Ref CognitoUserPool
+    USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+    USERS_TABLE: !Ref UsersTable
+    PRODUCTS_TABLE: !Ref ProductsTable
+    ORDERS_TABLE: !Ref OrdersTable
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/*"
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:ListUsers
+            - cognito-idp:InitiateAuth
+            - cognito-idp:RespondToAuthChallenge
+          Resource: "arn:aws:cognito-idp:${self:provider.region}:*:userpool/*"
+
+functions:
+  healthCheck:
+    handler: lambda/health-check/health-check.handler
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+
+  authService:
+    handler: lambda/auth-service-minimal/auth-service-minimal.handler
+    events:
+      - http:
+          path: /auth/test
+          method: get
+          cors: true
+      - http:
+          path: /auth/register
+          method: post
+          cors: true
+      - http:
+          path: /auth/login
+          method: post
+          cors: true
+
+  userService:
+    handler: lambda/user-service/user-service.handler
+    events:
+      - http:
+          path: /users
+          method: get
+          cors: true
+      - http:
+          path: /users/{id}
+          method: get
+          cors: true
+      - http:
+          path: /users
+          method: post
+          cors: true
+
+  productService:
+    handler: lambda/product-service/product-service.handler
+    events:
+      - http:
+          path: /products
+          method: get
+          cors: true
+      - http:
+          path: /products/{id}
+          method: get
+          cors: true
+      - http:
+          path: /products
+          method: post
+          cors: true
+
+  orderService:
+    handler: lambda/order-service/order-service.handler
+    events:
+      - http:
+          path: /orders
+          method: get
+          cors: true
+      - http:
+          path: /orders/{id}
+          method: get
+          cors: true
+      - http:
+          path: /orders
+          method: post
+          cors: true
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}-users
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}-products
+        AttributeDefinitions:
+          - AttributeName: productId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: productId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}-orders
+        AttributeDefinitions:
+          - AttributeName: orderId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    # Cognito User Pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:provider.stage}-microservice-sso-user-pool
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: true
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+
+    # Cognito User Pool Client
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:provider.stage}-microservice-sso-client
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ADMIN_NO_SRP_AUTH
+          - USER_PASSWORD_AUTH
+        TokenValidityUnits:
+          AccessToken: hours
+          IdToken: hours
+          RefreshToken: days
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 30
+
+  Outputs:
+    UserPoolId:
+      Description: Cognito User Pool ID
+      Value: !Ref CognitoUserPool
+      Export:
+        Name: ${self:provider.stage}-UserPoolId
+    
+    UserPoolClientId:
+      Description: Cognito User Pool Client ID
+      Value: !Ref CognitoUserPoolClient
+      Export:
+        Name: ${self:provider.stage}-UserPoolClientId
+    
+    UsersTableName:
+      Description: DynamoDB Users Table Name
+      Value: !Ref UsersTable
+      Export:
+        Name: ${self:provider.stage}-UsersTableName
+
+plugins:
+  - serverless-offline 

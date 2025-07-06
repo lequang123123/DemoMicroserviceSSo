@@ -1,0 +1,12 @@
+{
+  "name": "auth-service-minimal",
+  "version": "1.0.0",
+  "description": "Minimal auth service for testing Cognito",
+  "main": "auth-service-minimal.js",
+  "dependencies": {
+    "aws-sdk": "^2.1498.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

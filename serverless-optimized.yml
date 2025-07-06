@@ -1,0 +1,283 @@
+service: microservice-sso-minimal
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    USER_POOL_ID: !Ref CognitoUserPool
+    USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
+    USERS_TABLE: !Ref UsersTable
+    PRODUCTS_TABLE: !Ref ProductsTable
+    ORDERS_TABLE: !Ref OrdersTable
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/*"
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminInitiateAuth
+            - cognito-idp:AdminCreateUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminUpdateUserAttributes
+            - cognito-idp:AdminDeleteUser
+            - cognito-idp:ListUsers
+            - cognito-idp:InitiateAuth
+            - cognito-idp:RespondToAuthChallenge
+          Resource: "arn:aws:cognito-idp:${self:provider.region}:*:userpool/*"
+
+# Individual packaging for each function
+package:
+  individually: true
+  excludeDevDependencies: true
+  patterns:
+    # Global exclusions
+    - '!README.md'
+    - '!guideline.md'
+    - '!DEPLOYMENT.md'
+    - '!env.*'
+    - '!serverless*.yml'
+    - '!.git/**'
+    - '!.serverless/**'
+    - '!.eslintrc.*'
+    - '!jest.config.*'
+    - '!coverage/**'
+    - '!*.test.js'
+    - '!*.spec.js'
+    - '!buildspec.yml'
+    - '!node_modules/.cache/**'
+    - '!node_modules/.bin/**'
+    - '!node_modules/**/test/**'
+    - '!node_modules/**/tests/**'
+    - '!node_modules/**/docs/**'
+    - '!node_modules/**/example/**'
+    - '!node_modules/**/examples/**'
+    - '!node_modules/**/*.md'
+    - '!node_modules/**/*.txt'
+    - '!node_modules/**/LICENSE*'
+    - '!node_modules/**/CHANGELOG*'
+
+# Lambda Layers for shared dependencies
+layers:
+  commonDependencies:
+    path: layers/common-dependencies
+    name: ${self:provider.stage}-common-dependencies
+    description: Common dependencies for all microservices
+    compatibleRuntimes:
+      - nodejs18.x
+    retain: false
+
+functions:
+  healthCheck:
+    handler: lambda/health-check/health-check.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/health-check/health-check.js'
+        - 'shared/aws-config.js'
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+
+  authService:
+    handler: lambda/auth-service-minimal/auth-service-minimal.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/auth-service-minimal/auth-service-minimal.js'
+        - 'shared/aws-config.js'
+    events:
+      - http:
+          path: /auth/test
+          method: get
+          cors: true
+      - http:
+          path: /auth/register
+          method: post
+          cors: true
+      - http:
+          path: /auth/login
+          method: post
+          cors: true
+
+  userService:
+    handler: lambda/user-service/user-service.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/user-service/user-service.js'
+        - 'shared/aws-config.js'
+    events:
+      - http:
+          path: /users
+          method: get
+          cors: true
+      - http:
+          path: /users/{id}
+          method: get
+          cors: true
+      - http:
+          path: /users
+          method: post
+          cors: true
+
+  productService:
+    handler: lambda/product-service/product-service.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/product-service/product-service.js'
+        - 'shared/aws-config.js'
+    events:
+      - http:
+          path: /products
+          method: get
+          cors: true
+      - http:
+          path: /products/{id}
+          method: get
+          cors: true
+      - http:
+          path: /products
+          method: post
+          cors: true
+
+  orderService:
+    handler: lambda/order-service/order-service.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/order-service/order-service.js'
+        - 'shared/aws-config.js'
+    events:
+      - http:
+          path: /orders
+          method: get
+          cors: true
+      - http:
+          path: /orders/{id}
+          method: get
+          cors: true
+      - http:
+          path: /orders
+          method: post
+          cors: true
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}-users
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}-products
+        AttributeDefinitions:
+          - AttributeName: productId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: productId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}-orders
+        AttributeDefinitions:
+          - AttributeName: orderId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orderId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    # Cognito User Pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:provider.stage}-microservice-sso-user-pool
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireUppercase: true
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+
+    # Cognito User Pool Client
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:provider.stage}-microservice-sso-client
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ADMIN_NO_SRP_AUTH
+          - USER_PASSWORD_AUTH
+        TokenValidityUnits:
+          AccessToken: hours
+          IdToken: hours
+          RefreshToken: days
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 30
+
+  Outputs:
+    UserPoolId:
+      Description: Cognito User Pool ID
+      Value: !Ref CognitoUserPool
+      Export:
+        Name: ${self:provider.stage}-UserPoolId
+    
+    UserPoolClientId:
+      Description: Cognito User Pool Client ID
+      Value: !Ref CognitoUserPoolClient
+      Export:
+        Name: ${self:provider.stage}-UserPoolClientId
+    
+    UsersTableName:
+      Description: DynamoDB Users Table Name
+      Value: !Ref UsersTable
+      Export:
+        Name: ${self:provider.stage}-UsersTableName
+
+plugins:
+  - serverless-offline 

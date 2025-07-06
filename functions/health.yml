@@ -1,8 +1,0 @@
-# Health Check
-healthCheck:
-  handler: lambda/health-check/health-check.handler
-  events:
-    - http:
-        path: /health
-        method: get
-        cors: true 

@@ -1,0 +1,49 @@
+# Documentation and guides
+*.md
+docs/
+guideline.md
+README.md
+DEPLOYMENT.md
+
+# Config files (exclude config files, keep package.json)
+serverless*.yml
+!serverless-optimized.yml
+!serverless-minimal.yml
+.eslintrc.*
+jest.config.*
+jest.setup.*
+buildspec.yml
+
+# Development files
+.git/
+.gitignore
+.serverless/
+*.test.js
+*.spec.js
+coverage/
+
+# Environment files
+.env*
+env.*
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+*.tgz
+*.tar.gz
+
+# Let individual function patterns handle the rest 

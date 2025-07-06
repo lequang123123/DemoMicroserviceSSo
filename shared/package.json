@@ -1,0 +1,12 @@
+{
+  "name": "shared-utilities",
+  "version": "1.0.0",
+  "description": "Shared utilities for microservice functions",
+  "main": "aws-config.js",
+  "dependencies": {
+    "aws-sdk": "^2.1498.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 
