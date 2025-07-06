@@ -5,6 +5,10 @@ provider:
   runtime: nodejs18.x
   region: us-east-1
   stage: ${opt:stage, 'dev'}
+  # Default settings for all functions
+  memorySize: 128
+  timeout: 30
+  ephemeralStorageSize: 128
   environment:
     STAGE: ${self:provider.stage}
     REGION: ${self:provider.region}

@@ -43,6 +43,9 @@ npm run deploy:dev
 
 # Hoặc dùng lệnh serverless trực tiếp
 sls deploy --stage dev --region us-east-1
+
+// Deploy from file serverless-optimized.yml
+sls deploy --config serverless-optimized.yml
 ```
 
 ### 4. Deploy Production Environment
