@@ -1,4 +1,4 @@
-service: microservice-sso-minimal
+service: microservice-sso-optimized
 
 provider:
   name: aws
@@ -8,7 +8,6 @@ provider:
   # Default settings for all functions
   memorySize: 128
   timeout: 30
-  ephemeralStorageSize: 128
   environment:
     STAGE: ${self:provider.stage}
     REGION: ${self:provider.region}
@@ -41,6 +40,10 @@ provider:
             - cognito-idp:InitiateAuth
             - cognito-idp:RespondToAuthChallenge
           Resource: "arn:aws:cognito-idp:${self:provider.region}:*:userpool/*"
+        - Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+          Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${self:provider.stage}-*"
 
 # Individual packaging for each function
 package:
@@ -99,16 +102,29 @@ functions:
           method: get
           cors: true
 
+  # Lambda Authorizer for OAuth2 JWT validation
+  cognitoAuthorizer:
+    handler: lambda/cognito-authorizer/cognito-authorizer.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/cognito-authorizer/cognito-authorizer.js'
+        - 'shared/aws-config.js'
+
   authService:
     handler: lambda/auth-service-minimal/auth-service-minimal.handler
     layers:
       - { Ref: CommonDependenciesLambdaLayer }
+
     package:
       patterns:
         - '!**'
         - 'lambda/auth-service-minimal/auth-service-minimal.js'
         - 'shared/aws-config.js'
     events:
+      # Public endpoints (no auth needed)
       - http:
           path: /auth/test
           method: get
@@ -121,29 +137,69 @@ functions:
           path: /auth/login
           method: post
           cors: true
+      # OAuth2 endpoints
+      - http:
+          path: /oauth2/authorize
+          method: get
+          cors: true
+      - http:
+          path: /oauth2/token
+          method: post
+          cors: true
+      - http:
+          path: /oauth2/refresh
+          method: post
+          cors: true
+      # Protected endpoints (requires JWT)
+      - http:
+          path: /auth/profile
+          method: get
+          cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
+      - http:
+          path: /auth/logout
+          method: post
+          cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
 
   userService:
     handler: lambda/user-service/user-service.handler
     layers:
       - { Ref: CommonDependenciesLambdaLayer }
+    environment:
+      USERS_TABLE_NAME: ${self:provider.stage}-users
     package:
       patterns:
         - '!**'
         - 'lambda/user-service/user-service.js'
         - 'shared/aws-config.js'
     events:
+      # Protected endpoints (SSO - requires JWT from any OAuth2 client)
       - http:
           path: /users
           method: get
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
       - http:
           path: /users/{id}
           method: get
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
       - http:
           path: /users
           method: post
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
 
   productService:
     handler: lambda/product-service/product-service.handler
@@ -155,6 +211,7 @@ functions:
         - 'lambda/product-service/product-service.js'
         - 'shared/aws-config.js'
     events:
+      # Public endpoints
       - http:
           path: /products
           method: get
@@ -163,10 +220,28 @@ functions:
           path: /products/{id}
           method: get
           cors: true
+      # Protected endpoints (admin only)
       - http:
           path: /products
           method: post
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
+      - http:
+          path: /products/{id}
+          method: put
+          cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
+      - http:
+          path: /products/{id}
+          method: delete
+          cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
 
   orderService:
     handler: lambda/order-service/order-service.handler
@@ -178,23 +253,36 @@ functions:
         - 'lambda/order-service/order-service.js'
         - 'shared/aws-config.js'
     events:
+      # All order endpoints require authentication (user's own orders)
       - http:
           path: /orders
           method: get
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
       - http:
           path: /orders/{id}
           method: get
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
       - http:
           path: /orders
           method: post
           cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
 
 resources:
   Resources:
+    # DynamoDB Tables (Protected from deletion)
     UsersTable:
       Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain          # 🛡️ Protect user data
+      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
         TableName: ${self:provider.stage}-users
         AttributeDefinitions:
@@ -207,6 +295,8 @@ resources:
 
     ProductsTable:
       Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain          # 🛡️ Protect product data
+      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
         TableName: ${self:provider.stage}-products
         AttributeDefinitions:
@@ -219,6 +309,8 @@ resources:
 
     OrdersTable:
       Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain          # 🛡️ Protect order data
+      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
         TableName: ${self:provider.stage}-orders
         AttributeDefinitions:
@@ -229,9 +321,28 @@ resources:
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
 
-    # Cognito User Pool
+    SessionsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain          # 🛡️ Protect session data
+      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
+      Properties:
+        TableName: ${self:provider.stage}-sessions
+        AttributeDefinitions:
+          - AttributeName: sessionId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: sessionId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+
+    # Cognito User Pool (Protected from deletion)
     CognitoUserPool:
       Type: AWS::Cognito::UserPool
+      DeletionPolicy: Retain          # 🛡️ Protect from deletion
+      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
         UserPoolName: ${self:provider.stage}-microservice-sso-user-pool
         UsernameAttributes:
@@ -246,9 +357,11 @@ resources:
             RequireNumbers: true
             RequireSymbols: false
 
-    # Cognito User Pool Client
+    # Cognito User Pool Client (Protected from deletion)
     CognitoUserPoolClient:
       Type: AWS::Cognito::UserPoolClient
+      DeletionPolicy: Retain          # 🛡️ Protect from deletion
+      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
         ClientName: ${self:provider.stage}-microservice-sso-client
         UserPoolId: !Ref CognitoUserPool
@@ -269,19 +382,19 @@ resources:
       Description: Cognito User Pool ID
       Value: !Ref CognitoUserPool
       Export:
-        Name: ${self:provider.stage}-UserPoolId
+        Name: ${self:provider.stage}-optimized-UserPoolId
     
     UserPoolClientId:
       Description: Cognito User Pool Client ID
       Value: !Ref CognitoUserPoolClient
       Export:
-        Name: ${self:provider.stage}-UserPoolClientId
+        Name: ${self:provider.stage}-optimized-UserPoolClientId
     
     UsersTableName:
       Description: DynamoDB Users Table Name
       Value: !Ref UsersTable
       Export:
-        Name: ${self:provider.stage}-UsersTableName
+        Name: ${self:provider.stage}-optimized-UsersTableName
 
 plugins:
   - serverless-offline 

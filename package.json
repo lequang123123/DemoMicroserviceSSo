@@ -22,7 +22,18 @@
     "invoke:local": "serverless invoke local",
     "logs:tail": "serverless logs -f --tail",
     "validate": "serverless config validate",
-    "install:all": "npm install && cd lambda/user-service && npm install && cd ../order-service && npm install && cd ../product-service && npm install && cd ../auth-service && npm install && cd ../cognito-authorizer && npm install && cd ../health-check && npm install && cd ../.."
+    "install:all": "npm install && cd lambda/user-service && npm install && cd ../order-service && npm install && cd ../product-service && npm install && cd ../auth-service && npm install && cd ../cognito-authorizer && npm install && cd ../health-check && npm install && cd ../..",
+    "frontend": "node serve.js",
+    "test:frontend": "node serve.js",
+    "start": "node serve.js",
+    "deploy:optimized": "serverless deploy --config serverless-optimized.yml",
+    "deploy:minimal": "serverless deploy --config serverless-minimal.yml",
+    "remove:optimized": "serverless remove --config serverless-optimized.yml",
+    "remove:minimal": "serverless remove --config serverless-minimal.yml",
+    "backup:cognito": "node backup-cognito.js backup us-east-1_8ML8938m2",
+    "backup:config": "node backup-cognito.js config us-east-1_8ML8938m2",
+    "restore:cognito": "node backup-cognito.js restore",
+    "deploy:safe": "npm run backup:cognito && npm run backup:config && npm run deploy:optimized"
   },
   "devDependencies": {
     "serverless": "^3.38.0",

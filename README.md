@@ -1,675 +1,360 @@
-# Microservice SSO với AWS Lambda và Serverless Framework
+# 🚀 Microservice SSO với AWS Lambda
 
-Dự án này triển khai hệ thống microservice với Single Sign-On (SSO) sử dụng AWS Lambda, API Gateway, Cognito, và DynamoDB.
+**Complete OAuth2 & SSO system** với AWS Lambda, API Gateway, Cognito, và DynamoDB.
 
-## 📋 Tổng quan
+## 🎯 Overview
 
-Hệ thống bao gồm các microservice sau:
+**5 Microservices** với **Single Sign-On** authentication:
+- 🔐 **Auth Service** - OAuth2 authentication flows
+- 👥 **User Service** - User profile management  
+- 📦 **Product Service** - Product catalog
+- 🛒 **Order Service** - Order processing
+- 🏥 **Health Check** - Service monitoring
 
-- **Auth Service**: Xử lý authentication và authorization
-- **User Service**: Quản lý thông tin người dùng
-- **Order Service**: Quản lý đơn hàng
-- **Product Service**: Quản lý sản phẩm
-- **Health Check**: Kiểm tra trạng thái hệ thống
+## 🔄 OAuth2 & SSO Flows
 
-## 🏗️ Kiến trúc
-
-### Sơ đồ Hệ thống
+### 🔐 **Flow 1: OAuth2 Password Grant** (Direct Authentication)
 
 ```mermaid
-graph TB
-    %% Client Layer
-    Client[Client Applications<br/>Web/Mobile Apps]
+sequenceDiagram
+    participant User as 👤 User/Client
+    participant Frontend as 🌐 Frontend App
+    participant APIGW as 🚪 API Gateway
+    participant Auth as 🔐 Lambda Authorizer
+    participant AuthSvc as 🛡️ Auth Service Lambda
+    participant UserSvc as 👥 User Service Lambda  
+    participant Cognito as 🧠 AWS Cognito
+    participant DDB as 💾 DynamoDB
+
+    Note over User, DDB: OAuth2 Password Grant Flow
     
-    %% API Gateway Layer
-    APIGateway[API Gateway<br/>REST API Endpoints]
+    User->>Frontend: 1. Enter credentials
+    Frontend->>APIGW: 2. POST /oauth2/token<br/>grant_type=password
+    APIGW->>AuthSvc: 3. Route to Auth Service
+    AuthSvc->>Cognito: 4. adminInitiateAuth()
+    Cognito-->>AuthSvc: 5. JWT tokens (access, id, refresh)
+    AuthSvc-->>Frontend: 6. OAuth2 response
+    Frontend-->>User: 7. Login successful
+
+    Note over User, DDB: Protected API Request with JWT
     
-    %% Authentication Layer
-    Cognito[Amazon Cognito<br/>User Pool + Identity Pool]
-    Authorizer[Lambda Authorizer<br/>JWT Validation]
+    User->>Frontend: 8. Request user profile
+    Frontend->>APIGW: 9. GET /users/profile<br/>Authorization: Bearer TOKEN
+    APIGW->>Auth: 10. Validate JWT token
+    Auth->>Cognito: 11. Get JWKS public keys
+    Cognito-->>Auth: 12. Return keys
+    Auth->>Auth: 13. Verify JWT signature
     
-    %% Microservices Layer
-    AuthService[Auth Service<br/>Login/Register/Refresh]
-    UserService[User Service<br/>Profile Management]
-    OrderService[Order Service<br/>Order Management]
-    ProductService[Product Service<br/>Product CRUD]
-    HealthCheck[Health Check<br/>Service Status]
+    alt JWT Valid
+        Auth-->>APIGW: 14. Allow + user context
+        APIGW->>UserSvc: 15. Forward + auth context
+        UserSvc->>DDB: 16. Query user data
+        DDB-->>UserSvc: 17. Return data
+        UserSvc-->>Frontend: 18. User profile
+    else JWT Invalid
+        Auth-->>APIGW: 14b. Deny (401)
+        APIGW-->>Frontend: 15b. Unauthorized
+    end
+
+    Note over User, DDB: Cross-Service SSO
     
-    %% Database Layer
-    UsersDB[Users Table<br/>DynamoDB]
-    OrdersDB[Orders Table<br/>DynamoDB]
-    ProductsDB[Products Table<br/>DynamoDB]
-    SessionsDB[Sessions Table<br/>DynamoDB]
-    
-    %% Infrastructure Layer
-    CloudFormation[CloudFormation<br/>Infrastructure as Code]
-    
-    %% Client interactions
-    Client -->|HTTPS Requests| APIGateway
-    
-    %% API Gateway routing
-    APIGateway -->|Authorization| Authorizer
-    APIGateway -->|/auth/*| AuthService
-    APIGateway -->|/users/*| UserService
-    APIGateway -->|/orders/*| OrderService
-    APIGateway -->|/products/*| ProductService
-    APIGateway -->|/health| HealthCheck
-    
-    %% Authentication flow
-    Authorizer -->|Validate JWT| Cognito
-    AuthService -->|User Authentication| Cognito
-    
-    %% Service to database connections
-    AuthService -->|Sessions| SessionsDB
-    UserService -->|User Data| UsersDB
-    OrderService -->|Order Data| OrdersDB
-    OrderService -->|User Validation| UserService
-    ProductService -->|Product Data| ProductsDB
-    
-    %% Service to service communication
-    OrderService -.->|Internal Call| UserService
-    
-    %% Infrastructure management
-    CloudFormation -->|Manages| APIGateway
-    CloudFormation -->|Manages| Cognito
-    CloudFormation -->|Manages| AuthService
-    CloudFormation -->|Manages| UserService
-    CloudFormation -->|Manages| OrderService
-    CloudFormation -->|Manages| ProductService
-    CloudFormation -->|Manages| HealthCheck
-    CloudFormation -->|Manages| UsersDB
-    CloudFormation -->|Manages| OrdersDB
-    CloudFormation -->|Manages| ProductsDB
-    CloudFormation -->|Manages| SessionsDB
-    
-    %% Styling
-    classDef clientLayer fill:#e1f5fe
-    classDef apiLayer fill:#f3e5f5
-    classDef authLayer fill:#fff3e0
-    classDef serviceLayer fill:#e8f5e8
-    classDef dataLayer fill:#fce4ec
-    classDef infraLayer fill:#f1f8e9
-    
-    class Client clientLayer
-    class APIGateway apiLayer
-    class Cognito,Authorizer authLayer
-    class AuthService,UserService,OrderService,ProductService,HealthCheck serviceLayer
-    class UsersDB,OrdersDB,ProductsDB,SessionsDB dataLayer
-    class CloudFormation infraLayer
+    User->>Frontend: 19. Get user orders
+    Frontend->>APIGW: 20. GET /users/orders<br/>Same JWT token
+    APIGW->>Auth: 21. Validate JWT (SSO)
+    Auth-->>APIGW: 22. Allow (same context)
+    APIGW->>UserSvc: 23. Route to User Service
+    UserSvc->>APIGW: 24. Internal: GET /orders<br/>Same JWT (SSO)
+    APIGW->>Auth: 25. Validate (SSO maintained)
+    Auth-->>APIGW: 26. Allow
+    APIGW->>OrderSvc: 27. Route to Order Service
+    OrderSvc->>DDB: 28. Query orders
+    DDB-->>OrderSvc: 29. Return orders
+    OrderSvc-->>UserSvc: 30. Order data
+    UserSvc-->>Frontend: 31. Combined response
 ```
 
-### Mô tả Components
+### 🔗 **Flow 2: OAuth2 Authorization Code** (Standard Enterprise Flow)
 
-- **🌐 Client Layer**: Các ứng dụng frontend (web/mobile) tương tác với API
-- **🚪 API Gateway**: Điểm entry duy nhất cho tất cả requests, handle routing và CORS
-- **🔐 Authentication**: Cognito quản lý user authentication, Lambda Authorizer validate JWT
-- **⚙️ Microservices**: Các Lambda functions xử lý business logic riêng biệt
-- **💾 Database**: DynamoDB tables lưu trữ data của từng service
-- **🏗️ Infrastructure**: CloudFormation manage toàn bộ AWS resources
+```mermaid
+sequenceDiagram
+    participant User as 👤 User/Client
+    participant Browser as 🌐 Browser
+    participant Frontend as 💻 Frontend App
+    participant APIGW as 🚪 API Gateway
+    participant AuthSvc as 🛡️ Auth Service Lambda
+    participant AuthUI as 🔐 Authorization Server<br/>(Custom Login Page)
+    participant Cognito as 🧠 AWS Cognito
+    participant Auth as 🔒 Lambda Authorizer
+    participant UserSvc as 👥 User Service Lambda
 
-### Luồng xử lý Request
+    Note over User, UserSvc: OAuth2 Authorization Code Flow (Standard)
+    
+    %% Step 1: Initiate Authorization
+    User->>Frontend: 1. Click "Login with SSO"
+    Frontend->>APIGW: 2. GET /oauth2/authorize?<br/>response_type=code&client_id=xxx&<br/>redirect_uri=callback&state=xyz
+    APIGW->>AuthSvc: 3. Handle authorization request
+    AuthSvc->>AuthSvc: 4. Generate state & validate params
+    AuthSvc-->>APIGW: 5. Return authorization URL
+    APIGW-->>Frontend: 6. Custom login URL
+    Frontend->>Browser: 7. Redirect to login page
+    
+    %% Step 2: User Authentication
+    Browser->>AuthUI: 8. Display login form
+    User->>AuthUI: 9. Enter credentials
+    AuthUI->>APIGW: 10. POST /oauth2/login<br/>(email, password, state)
+    APIGW->>AuthSvc: 11. Validate credentials
+    AuthSvc->>Cognito: 12. adminInitiateAuth()
+    Cognito-->>AuthSvc: 13. Authentication success
+    AuthSvc->>AuthSvc: 14. Generate authorization code
+    AuthSvc-->>APIGW: 15. Return auth code
+    APIGW-->>AuthUI: 16. Auth code + redirect
+    
+    %% Step 3: Authorization Code Exchange
+    AuthUI->>Browser: 17. Redirect to callback URL<br/>?code=AUTH_CODE&state=xyz
+    Browser->>Frontend: 18. Callback with code
+    Frontend->>Frontend: 19. Validate state parameter
+    Frontend->>APIGW: 20. POST /oauth2/token<br/>grant_type=authorization_code<br/>code=AUTH_CODE
+    APIGW->>AuthSvc: 21. Exchange code for tokens
+    AuthSvc->>AuthSvc: 22. Validate authorization code
+    AuthSvc->>Cognito: 23. Get user tokens (if valid)
+    Cognito-->>AuthSvc: 24. JWT tokens (access, id, refresh)
+    AuthSvc-->>APIGW: 25. Return OAuth2 token response
+    APIGW-->>Frontend: 26. JWT tokens
+    Frontend->>Frontend: 27. Store tokens securely
+    Frontend-->>User: 28. Login successful + SSO enabled
+    
+    Note over User, UserSvc: Use JWT Token for Protected Resources
+    
+    %% Step 4: Protected API Access
+    User->>Frontend: 29. Access protected resource
+    Frontend->>APIGW: 30. GET /users/profile<br/>Authorization: Bearer ACCESS_TOKEN
+    APIGW->>Auth: 31. Validate JWT token
+    Auth->>Cognito: 32. Verify with JWKS
+    Cognito-->>Auth: 33. Token valid
+    Auth-->>APIGW: 34. Allow + user context
+    APIGW->>UserSvc: 35. Forward request
+    UserSvc-->>APIGW: 36. User profile data
+    APIGW-->>Frontend: 37. Return data
+    Frontend-->>User: 38. Display profile (SSO complete)
+    
+    Note over User, UserSvc: Token Refresh Flow
+    
+    %% Step 5: Token Refresh (when access token expires)
+    Frontend->>Frontend: 39. Detect token expiring
+    Frontend->>APIGW: 40. POST /oauth2/token<br/>grant_type=refresh_token<br/>refresh_token=xxx
+    APIGW->>AuthSvc: 41. Process refresh
+    AuthSvc->>Cognito: 42. Refresh token validation
+    Cognito-->>AuthSvc: 43. New access & ID tokens
+    AuthSvc-->>APIGW: 44. Return new tokens
+    APIGW-->>Frontend: 45. Updated tokens
+    Frontend->>Frontend: 46. Update stored tokens
+    Note over Frontend: SSO maintained across all services
+```
 
-1. **Client** gửi request đến **API Gateway**
-2. **API Gateway** check authorization qua **Lambda Authorizer**
-3. **Lambda Authorizer** validate JWT token với **Cognito**
-4. Request được route đến **Lambda Function** tương ứng
-5. **Lambda Function** xử lý business logic và tương tác với **DynamoDB**
-6. Response được trả về client qua **API Gateway**
+## 🏗️ Architecture
 
-## 🛠️ Cài đặt
+### **AWS Components**
+- **API Gateway**: Single entry point, CORS, routing
+- **Lambda Authorizer**: JWT validation với Cognito JWKS
+- **Cognito User Pool**: User authentication & JWT issuing
+- **Lambda Functions**: Business logic microservices
+- **DynamoDB**: NoSQL database cho từng service
 
-### Prerequisites
+### **OAuth2 Flows Supported**
+- ✅ **Password Grant**: Username/password → JWT tokens
+- ✅ **Authorization Code**: Redirect-based flow
+- ✅ **Client Credentials**: Service-to-service auth
+- ✅ **Refresh Token**: Token renewal
 
-- Node.js 18.x hoặc cao hơn
-- AWS CLI đã cấu hình
-- Serverless Framework CLI
+### **SSO Features**
+- 🔑 **Single Login**: One JWT for all services
+- 🔄 **Token Reuse**: Cross-service authentication
+- 🛡️ **Centralized Auth**: Cognito manages all users
+- 📊 **Stateless**: JWT contains user context
 
-### Cài đặt dependencies
+## 🚀 Quick Start
 
+### **Prerequisites**
 ```bash
-# Cài đặt dependencies cho root project
+# Required
+node -v    # >= 18.x
+aws --version
+npm install -g serverless
+```
+
+### **Setup**
+```bash
+# 1. Install dependencies
 npm install
 
-# Cài đặt dependencies cho tất cả lambda functions
-npm run install:all
-```
-
-### Cấu hình Environment Variables
-
-1. Copy file template environment:
-```bash
-cp env.example .env
-```
-
-2. Điền các giá trị thực tế trong file `.env`:
-```bash
-# Chỉnh sửa file .env với các giá trị của bạn
-nano .env
-```
-
-⚠️ **Lưu ý**: 
-- File `.env` chỉ dùng cho reference, không được load tự động
-- Environment variables được config trong `config/environment.yml`
-- Để test local, có thể cần mock AWS services hoặc dùng local DynamoDB
-
-### Cấu hình AWS
-
-```bash
-# Cấu hình AWS CLI
+# 2. Configure AWS
 aws configure
+# or
+export AWS_PROFILE=your-profile
 
-# Hoặc sử dụng profile
-export AWS_PROFILE=your-profile-name
-```
-
-## 🚀 Deployment
-
-### ✅ Current Deployment Status
-
-#### Successfully Deployed to AWS
-- **Base URL**: `https://yjclq9fg89.execute-api.us-east-1.amazonaws.com/dev`
-- **User Pool ID**: `us-east-1_zTGKUVaJY`
-- **User Pool Client ID**: `5s3ci6cn5qe6d34eoh0le150v6`
-- **Stage**: `dev`
-- **Region**: `us-east-1`
-- **Configuration**: `serverless-minimal.yml`
-
-#### 🧪 Tested Endpoints
-- ✅ **Health Check**: `/health` - Working
-- ✅ **User Registration**: `/auth/register` - Working
-- ✅ **User Login**: `/auth/login` - Working
-- ✅ **Auth Test**: `/auth/test` - Working
-- ⏳ **Protected Routes**: Pending authorizer implementation
-
-### Local Development (Test Local)
-
-```bash
-# Chạy local development server (không deploy lên AWS)
-npm run dev
-# hoặc
-sls offline start
-
-# Server sẽ chạy tại http://localhost:3000
-```
-
-### Development Environment (Deploy lên AWS)
-
-```bash
-# Deploy toàn bộ stack lên AWS
+# 3. Deploy to AWS
 npm run deploy
-
-# Hoặc sử dụng lệnh serverless trực tiếp
-sls deploy --stage dev
-
-# Sẽ tạo API Gateway endpoint: https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev
 ```
 
-### Production Environment (Deploy lên AWS)
-
+### **Test OAuth2 Flow**
 ```bash
-# Deploy production
-npm run deploy:prod
-
-# Hoặc
-sls deploy --stage prod
-
-# Sẽ tạo API Gateway endpoint: https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/prod
-```
-
-### Deploy từng function riêng lẻ
-
-```bash
-# Deploy một function cụ thể (chỉ cập nhật code function)
-sls deploy function --function authService
-sls deploy function --function userService
-sls deploy function --function orderService
-sls deploy function --function productService
-```
-
-### Kiểm tra deployment
-
-```bash
-# Xem thông tin stack đã deploy
-sls info
-
-# Test API sau khi deploy
-curl https://your-api-url/health
-```
-
-### NPM Scripts có sẵn
-
-```bash
-# 🧪 Development & Testing
-npm run dev                    # Chạy local development server
-npm run offline               # Chạy serverless offline  
-npm test                      # Chạy tests
-npm run lint                  # Kiểm tra code quality
-
-# 🚀 Deployment
-npm run deploy                # Deploy development environment
-npm run deploy:dev            # Deploy development environment
-npm run deploy:prod           # Deploy production environment
-
-# 📊 Monitoring & Debug
-npm run info                  # Xem thông tin stack
-npm run logs                  # Xem logs function
-npm run logs:tail             # Xem logs realtime
-npm run invoke                # Invoke function trên AWS
-npm run invoke:local          # Invoke function locally
-
-# 🧹 Cleanup
-npm run remove                # Remove stack
-npm run remove:dev            # Remove development stack
-npm run remove:prod           # Remove production stack
-
-# 🔧 Utilities
-npm run validate              # Validate serverless config
-npm run package               # Package functions
-npm run print                 # Print compiled template
-npm run install:all           # Install dependencies cho tất cả lambda functions
-```
-
-## 🧪 Testing
-
-### Local Development
-
-⚠️ **Lưu ý**: Đây là serverless framework chạy trên AWS cloud, không phải ứng dụng local. Tuy nhiên, bạn có thể test local bằng `serverless-offline`:
-
-```bash
-# Cài đặt serverless-offline (đã có trong package.json)
-npm install
-
-# Chạy local development server
-npm run dev
-
-# Hoặc sử dụng lệnh serverless trực tiếp
-sls offline start
-
-# Server sẽ chạy tại http://localhost:3000
-```
-
-### Local Testing với Serverless Offline
-
-```bash
-# Health check (local)
-curl http://localhost:3000/health
-
-# Register user (local)
-curl -X POST http://localhost:3000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"TestPassword123!","given_name":"Test","family_name":"User"}'
-
-# Login (local)
-curl -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"TestPassword123!"}'
-```
-
-### Testing trên AWS (sau khi deploy)
-
-```bash
-# Health check (AWS)
-curl https://your-api-url/health
-
-# Register user (AWS)
+# 1. Register user
 curl -X POST https://your-api-url/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"TestPassword123!","given_name":"Test","family_name":"User"}'
+  -d '{"email":"test@example.com","password":"Test123!","name":"Test User"}'
 
-# Login (AWS)
-curl -X POST https://your-api-url/auth/login \
+# 2. Login (OAuth2 Password Grant)
+curl -X POST https://your-api-url/oauth2/token \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"TestPassword123!"}'
+  -d '{"grant_type":"password","username":"test@example.com","password":"Test123!","client_id":"your-client-id"}'
 
-# Get user profile (cần token)
+# 3. Use JWT token for protected endpoints
 curl -X GET https://your-api-url/users/profile \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-### Lấy API URL sau khi deploy
+## 📋 API Endpoints
 
+### **🔐 OAuth2 Authentication**
+- `GET /oauth2/authorize` - Authorization code flow
+- `POST /oauth2/token` - Token exchange (all grant types)
+- `POST /oauth2/refresh` - Token refresh
+
+### **👤 User Authentication**
+- `POST /auth/register` - User registration
+- `POST /auth/login` - Direct login
+- `POST /auth/user-info` - Decode JWT tokens
+- `GET /auth/profile` - Get user profile
+- `POST /auth/logout` - Logout
+
+### **🛡️ Protected Services**
+- `GET /users` - User management (requires auth)
+- `GET /products` - Product catalog  
+- `GET /orders` - Order management (requires auth)
+- `GET /health` - System health check
+
+## 🎯 Current Deployment
+
+### **✅ Production Ready**
+- **API URL**: `https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev`
+- **User Pool**: `us-east-1_8ML8938m2`
+- **Client ID**: `1rtq4ll07cvvatg432efpnjtta`
+- **Test User**: `sso-test@example.com` / `SSOTest123!`
+
+### **🧪 Frontend Test Dashboard**
 ```bash
-# Xem thông tin stack sau khi deploy
-sls info
+# Local test server
+node serve.js
+# Open: http://localhost:3000
 
-# Output sẽ hiển thị:
-# endpoints:
-#   GET - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev/health
-#   POST - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/dev/auth/register
-#   ...
+# Features:
+# ✅ Interactive OAuth2 testing
+# ✅ All grant flows UI
+# ✅ JWT token management
+# ✅ Cross-service SSO testing
 ```
 
-## 📁 Cấu trúc dự án
+## 📊 JWT Token Structure
+
+### **Access Token** (Authorization)
+```json
+{
+  "sub": "user-id",
+  "username": "user-uuid", 
+  "client_id": "app-client-id",
+  "token_use": "access",
+  "scope": "aws.cognito.signin.user.admin",
+  "exp": 1234567890
+}
+```
+
+### **ID Token** (User Identity)
+```json
+{
+  "sub": "user-id",
+  "email": "user@example.com",
+  "name": "User Name",
+  "email_verified": true,
+  "token_use": "id",
+  "exp": 1234567890
+}
+```
+
+## 🔧 Development
+
+### **Local Development**
+```bash
+npm run dev          # Serverless offline
+npm test            # Run tests
+npm run lint        # Code quality
+```
+
+### **Deployment**
+```bash
+npm run deploy      # Deploy to AWS
+npm run deploy:prod # Production deploy
+npm run info        # Stack info
+npm run logs        # View logs
+```
+
+### **Utilities**
+```bash
+npm run remove      # Remove stack
+npm run validate    # Validate config
+npm run package     # Package functions
+```
+
+## 📁 Project Structure
 
 ```
 microserviceSSo/
-├── lambda/                    # Lambda functions (96KB)
-│   ├── auth-service/         # Authentication service (12KB)
-│   ├── auth-service-minimal/ # Minimal auth service (12KB)
-│   ├── user-service/         # User management (12KB)
-│   ├── order-service/        # Order management (12KB)
-│   ├── product-service/      # Product management (12KB)
-│   ├── cognito-authorizer/   # JWT authorizer (12KB)
-│   └── health-check/         # Health check (12KB)
-├── shared/                   # Shared utilities (8KB)
-│   ├── aws-config.js         # AWS SDK configuration
-│   └── package.json          # Shared dependencies
-├── serverless-optimized.yml  # ⭐ Main production config (6.2KB)
-├── serverless-minimal.yml    # Backup simple config (5.3KB)
-├── .serverlessignore         # Package exclusion rules (1KB)
-├── guideline.md              # Complete technical guide (80KB)
-├── README.md                 # This file (20KB)
-├── DEPLOYMENT.md             # Deployment guide (8KB)
-├── package.json              # Dependencies (4KB)
-├── env.example               # Environment template (1KB)
-├── env.dev                   # Development environment (1KB)
-└── .gitignore                # Git ignore rules (1KB)
+├── lambda/                    # 🔧 Lambda functions
+│   ├── auth-service-minimal/  # OAuth2 + auth logic
+│   ├── user-service/         # User management
+│   ├── order-service/        # Order processing
+│   ├── product-service/      # Product catalog
+│   ├── cognito-authorizer/   # JWT validation
+│   └── health-check/         # Health monitoring
+├── shared/                   # 📦 Common utilities
+├── serverless-optimized.yml  # ⭐ Main config
+├── serverless-minimal.yml    # 🧪 Simple config
+├── oauth2-sso-test.html      # 🌐 Test dashboard
+├── guideline.md              # 📚 Complete guide
+└── README.md                 # 📖 This file
 ```
-
-### 📊 Cấu trúc sau Optimization
-
-| Component | Size | Description |
-|-----------|------|-------------|
-| **Lambda Functions** | 96KB | 6 microservices với code tối ưu |
-| **Shared Utilities** | 8KB | Common utilities và AWS config |
-| **Serverless Configs** | 11.5KB | Production và minimal configurations |
-| **Documentation** | 108KB | Complete guides và API docs |
-| **Total Project** | ~220KB | Compact và optimized codebase |
-
-### 🚀 Configuration Files
-
-- **serverless-optimized.yml**: Main production configuration với individual packaging
-- **serverless-minimal.yml**: Backup simple configuration cho testing
-- **.serverlessignore**: Aggressive file exclusion để giảm package size
-- **guideline.md**: Complete technical documentation với architecture details
-- **DEPLOYMENT.md**: Step-by-step deployment guide
-
-## 🔐 Authentication Flow
-
-1. **Register**: `/auth/register` - Tạo tài khoản mới
-2. **Login**: `/auth/login` - Đăng nhập và nhận JWT token
-3. **Refresh**: `/auth/refresh` - Làm mới token
-4. **Logout**: `/auth/logout` - Đăng xuất
-5. **Forgot Password**: `/auth/forgot-password` - Quên mật khẩu
-6. **Reset Password**: `/auth/reset-password` - Đặt lại mật khẩu
-
-## 📊 API Endpoints
-
-### Authentication Service
-- `POST /auth/register` - Đăng ký người dùng mới
-- `POST /auth/login` - Đăng nhập
-- `POST /auth/refresh` - Làm mới token
-- `POST /auth/logout` - Đăng xuất
-- `POST /auth/forgot-password` - Quên mật khẩu
-- `POST /auth/reset-password` - Đặt lại mật khẩu
-
-### User Service
-- `GET /users/profile` - Lấy thông tin profile
-- `PUT /users/profile` - Cập nhật profile
-- `GET /users/{userId}` - Lấy thông tin user (admin)
-- `PUT /users/{userId}` - Cập nhật user (admin)
-- `DELETE /users/{userId}` - Xóa user (admin)
-
-### Order Service
-- `POST /orders` - Tạo đơn hàng mới
-- `GET /orders` - Lấy danh sách đơn hàng của user
-- `GET /orders/{orderId}` - Lấy chi tiết đơn hàng
-- `PUT /orders/{orderId}` - Cập nhật đơn hàng
-- `DELETE /orders/{orderId}` - Hủy đơn hàng
-
-### Product Service
-- `GET /products` - Lấy danh sách sản phẩm (public)
-- `GET /products/{productId}` - Lấy chi tiết sản phẩm (public)
-- `POST /products` - Tạo sản phẩm mới (admin)
-- `PUT /products/{productId}` - Cập nhật sản phẩm (admin)
-- `DELETE /products/{productId}` - Xóa sản phẩm (admin)
-
-### Health Check
-- `GET /health` - Kiểm tra trạng thái hệ thống
 
 ## 🎯 Features
 
-### 🔐 Authentication & Authorization
-- ✅ JWT Authentication với AWS Cognito
-- ✅ Role-based Access Control (RBAC)
-- ✅ Lambda Authorizer cho API Gateway
-- ✅ Session Management với DynamoDB
+### **🔐 Authentication & Authorization**
+- ✅ AWS Cognito User Pool
+- ✅ JWT-based authentication
+- ✅ Lambda Authorizer validation
+- ✅ Role-based access control
 
-### 🏗️ Architecture & Infrastructure
-- ✅ Microservice Architecture
-- ✅ Serverless Framework (Infrastructure as Code)
-- ✅ AWS Lambda Functions
-- ✅ API Gateway với CORS
-- ✅ DynamoDB NoSQL Database
-- ✅ CloudFormation Templates
+### **🌐 OAuth2 & SSO**
+- ✅ Complete OAuth2 implementation
+- ✅ Multiple grant flows
+- ✅ Cross-service Single Sign-On
+- ✅ Token refresh mechanism
 
-### 🛠️ Development & Operations
-- ✅ Environment-based Deployment (dev/prod)
-- ✅ Modular Configuration (tách file yaml)
-- ✅ CloudWatch Logging & Monitoring
-- ✅ Health Check Endpoint
-- ✅ Local Development với Serverless Offline
-- ✅ Code Quality với ESLint
+### **🏗️ Architecture**
+- ✅ Serverless microservices
+- ✅ API Gateway integration
+- ✅ DynamoDB data persistence
+- ✅ CloudFormation infrastructure
 
-### 🚀 Scalability & Performance
-- ✅ Auto-scaling với Lambda
-- ✅ DynamoDB on-demand billing
-- ✅ Function Warmup để giảm cold start
-- ✅ Service-to-Service Communication
-- ✅ Package Optimization (11% size reduction)
+### **🛠️ Development**
+- ✅ Environment-based deployment
+- ✅ Optimized packaging
+- ✅ Interactive test dashboard
+- ✅ Complete documentation
 
-### 📊 Current Deployment Status
-- ✅ **Production Ready**: Successfully deployed to AWS
-- ✅ **API Gateway**: `https://yjclq9fg89.execute-api.us-east-1.amazonaws.com/dev`
-- ✅ **Authentication**: AWS Cognito User Pool active
-- ✅ **Database**: DynamoDB tables created
-- ✅ **Testing**: All endpoints verified working
+## 📖 Documentation
 
-## 🔧 Monitoring & Logging
+- **[Complete Guide](guideline.md)** - Detailed architecture & implementation
+- **[Deployment Guide](DEPLOYMENT.md)** - Step-by-step deployment
+- **[Test Dashboard](oauth2-sso-test.html)** - Interactive OAuth2 testing
 
-### CloudWatch Logs
+---
 
-```bash
-# Xem logs của function
-sls logs --function authService
-sls logs --function userService
-sls logs --function orderService
-```
-
-### Metrics
-
-- API Gateway request/response metrics
-- Lambda function duration và error rates
-- DynamoDB read/write capacity metrics
-- Cognito authentication metrics
-
-## 🛡️ Security
-
-- JWT token validation
-- Role-based access control
-- CORS configuration
-- Input validation
-- Error handling không expose sensitive data
-- Rate limiting (có thể enable)
-
-## 📈 Performance
-
-- Lambda function warmup
-- DynamoDB on-demand billing
-- API Gateway caching (có thể enable)
-- Optimal memory allocation (128MB)
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Permission Denied**: Kiểm tra IAM roles và policies
-2. **Function Timeout**: Tăng timeout trong serverless.yml
-3. **DynamoDB Access**: Đảm bảo IAM permissions cho DynamoDB
-4. **CORS Issues**: Kiểm tra CORS configuration
-5. **Local Development**: Serverless offline không connect được AWS resources thực
-
-### Debug Commands
-
-```bash
-# Kiểm tra stack info
-sls info
-
-# Invoke function locally (không cần deploy)
-sls invoke local --function authService --data '{"body":"{\"email\":\"test@example.com\"}"}'
-
-# Invoke function trên AWS (sau khi deploy)
-sls invoke --function authService --data '{"body":"{\"email\":\"test@example.com\"}"}'
-
-# Xem logs realtime
-sls logs --function authService --tail
-
-# Remove stack hoàn toàn
-sls remove
-```
-
-### Local Development với Serverless Offline
-
-```bash
-# Chạy offline với custom port
-sls offline start --port 4000
-
-# Chạy offline với specific stage
-sls offline start --stage local
-
-# Debug offline
-sls offline start --verbose
-```
-
-### Sự khác biệt giữa Local và AWS
-
-| Khía cạnh | Local (Serverless Offline) | AWS (Deployed) |
-|-----------|----------------------------|----------------|
-| **Database** | Mock DynamoDB hoặc Local DynamoDB | AWS DynamoDB |
-| **Authentication** | Mock Cognito | AWS Cognito |
-| **API Gateway** | Local server | AWS API Gateway |
-| **Permissions** | Không cần IAM | Cần IAM roles |
-| **Cold Start** | Không có | Có cold start |
-| **Monitoring** | Console logs | CloudWatch |
-
-### Limitations của Local Development
-
-⚠️ **Một số features không hoạt động khi chạy local:**
-
-1. **Cognito Integration**: Không thể connect đến AWS Cognito
-2. **DynamoDB**: Cần setup Local DynamoDB hoặc mock
-3. **IAM Roles**: Không có IAM validation
-4. **Service-to-Service**: Lambda invoke giữa các services cần config thêm
-5. **Environment Variables**: Một số env vars chỉ có trong AWS environment
-
-### Recommendations cho Local Development
-
-```bash
-# Sử dụng mock data cho testing
-# Hoặc setup local DynamoDB
-docker run -p 8000:8000 amazon/dynamodb-local
-
-# Sử dụng environment variables local
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
-export AWS_REGION=us-east-1
-```
-
-## 🤝 Contributing
-
-1. Fork repository
-2. Tạo feature branch
-3. Commit changes
-4. Push to branch
-5. Create Pull Request
-
-## 📄 License
-
-MIT License - xem file LICENSE để biết thêm details.
-
-## 📞 Support
-
-- Email: your-email@example.com
-- GitHub Issues: [Create an issue](https://github.com/your-repo/issues)
-
-## 🎉 Tại sao chọn Serverless Framework?
-
-### 💰 Chi phí
-- **Pay-as-you-go**: Chỉ trả tiền khi có request
-- **No server maintenance**: Không phải quản lý server
-- **Auto-scaling**: Tự động scale theo traffic
-
-### 🚀 Performance
-- **Fast deployment**: Deploy nhanh chóng với CloudFormation
-- **Global distribution**: API Gateway có sẵn CDN
-- **Managed services**: AWS quản lý infrastructure
-
-### 🛡️ Security
-- **IAM integration**: Tích hợp sẵn với AWS IAM
-- **VPC support**: Có thể chạy trong VPC
-- **Encryption**: Tự động encrypt data
-
-### 🧪 Development
-- **Local testing**: Test local với serverless offline
-- **Multiple environments**: Dễ dàng deploy multiple stages
-- **Infrastructure as Code**: Tất cả config trong code
-
-## 🔄 CI/CD
-
-Dự án sử dụng AWS CodePipeline với buildspec.yml để tự động deploy khi có thay đổi code.
-
-### Pipeline Stages
-
-1. **Source**: Lấy code từ repository
-2. **Build**: Chạy tests và build artifacts
-3. **Deploy**: Deploy lên AWS
-
-### Manual Deploy
-
-```bash
-# Build và deploy
-npm run build
-npm run deploy
-```
-
-## 🌟 Roadmap
-
-### ✅ Completed (v1.2.0)
-- [x] Microservice architecture with 5 services
-- [x] OAuth2 authentication with AWS Cognito
-- [x] User registration and login
-- [x] API Gateway integration
-- [x] DynamoDB database per service
-- [x] Package optimization (11% size reduction)
-- [x] Project cleanup (20+ files removed)
-- [x] Complete documentation
-- [x] Production deployment working
-
-### 🧪 Testing & Development
-- [ ] Add unit tests với Jest
-- [ ] Implement integration tests
-- [ ] Setup local DynamoDB container
-- [ ] Add mock Cognito service
-- [ ] Improve local development experience
-
-### 🚀 Features
-- [ ] Implement API rate limiting
-- [ ] Add email notifications
-- [ ] Implement caching layer (Redis/ElastiCache)
-- [ ] Add file upload functionality
-- [ ] Implement real-time notifications (WebSocket)
-
-### 📊 Monitoring & Operations
-- [ ] Add monitoring dashboard
-- [ ] Implement backup strategy
-- [ ] Add CI/CD pipeline
-- [ ] Performance optimization
-- [ ] Security audit
-- [ ] Add APM (Application Performance Monitoring)
-
-### 📚 Documentation
-- [ ] Add API documentation (Swagger/OpenAPI)
-- [ ] Create deployment guides
-- [ ] Add troubleshooting guides
-- [ ] Create video tutorials
-- [ ] Documentation improvements 
+**🚀 Ready for production deployment with complete OAuth2 & SSO functionality!** 
