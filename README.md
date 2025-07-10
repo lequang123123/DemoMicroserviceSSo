@@ -1,28 +1,15 @@
-# 🔐 Microservice OAuth2 SSO Authentication & User Management
+# 🔐 Microservice OAuth2 SSO Authentication
 
-Microservice authentication và user management system sử dụng **AWS Lambda**, **Amazon Cognito**, và **OAuth2** để cung cấp Single Sign-On (SSO) cho các ứng dụng.
+Microservice authentication system sử dụng **AWS Lambda**, **Amazon Cognito**, và **OAuth2** để cung cấp Single Sign-On (SSO) cho các ứng dụng.
 
 ## 🎯 Tính năng chính
 
-### 🔑 Authentication Service
 - **OAuth2 Authorization Code Flow** - Chuẩn OAuth2 hoàn chỉnh
-- **Password Grant Flow** - Đăng nhập trực tiếp với email/password
+- **Password Grant Flow** - Đăng nhập trực tiếp với email/password  
 - **Client Credentials Flow** - Xác thực service-to-service
 - **Refresh Token** - Gia hạn token tự động
-- **JWT Token Management** - Access token, ID token, Refresh token
 - **Amazon Cognito Integration** - User pool management
-
-### 👤 User Management Service
-- **User CRUD Operations** - Tạo, đọc, cập nhật, xóa user
-- **Profile Management** - Quản lý thông tin cá nhân
-- **Role-based Access Control** - Admin/User permissions
-- **Cognito Sync** - Đồng bộ dữ liệu từ Cognito
-- **Multi-tenant Support** - Hỗ trợ nhiều tenant
-
-### 🌐 Single Sign-On (SSO)
-- **Cross-service Authentication** - Đăng nhập một lần, truy cập mọi nơi
-- **JWT-based Authorization** - Stateless authentication
-- **Microservice Integration** - Dễ dàng tích hợp với các service khác
+- **JWT-based SSO** - Single Sign-On across microservices
 
 ## 🏗️ Kiến trúc hệ thống
 
@@ -53,35 +40,124 @@ Microservice authentication và user management system sử dụng **AWS Lambda*
                     └─────────────────────────────┘
 ```
 
+## 🔄 OAuth2 Flow Sequence Diagrams
+
+### 1. Authorization Code Flow (Cognito Hosted UI)
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Cognito
+    participant AuthService
+
+    Client->>Cognito: GET cognito-domain/oauth2/authorize
+    Note over Client,Cognito: response_type=code&client_id=xxx&redirect_uri=xxx
+    
+    Cognito->>Client: Redirect to login page
+    Client->>Cognito: POST credentials
+    Cognito->>Client: 302 Redirect with auth code
+    
+    Client->>AuthService: POST /oauth2/token
+    Note over Client,AuthService: grant_type=authorization_code&code=xxx&redirect_uri=xxx
+    
+    AuthService->>Cognito: Exchange code with Cognito
+    Note over AuthService,Cognito: POST to cognito-domain/oauth2/token
+    
+    Cognito->>AuthService: Return tokens from Cognito
+    AuthService->>Client: Return access_token, id_token, refresh_token
+    Note over Client: Store tokens for API calls
+```
+
+**Lưu ý**: Flow này sử dụng Cognito Hosted UI để xử lý authentication, sau đó AuthService chỉ đóng vai trò proxy để exchange authorization code với Cognito.
+
+### 2. Authorization Code Flow (Direct Authentication)
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthService
+    participant DynamoDB
+    participant Cognito
+
+    Client->>AuthService: POST /auth/login (OAuth2 mode)
+    Note over Client,AuthService: email=xxx&password=xxx&client_id=xxx&redirect_uri=xxx
+    
+    AuthService->>Cognito: AdminInitiateAuth
+    Cognito->>AuthService: Return authentication result
+    
+    AuthService->>DynamoDB: Store auth code with user credentials
+    AuthService->>Client: Return redirect_uri with code
+    
+    Client->>AuthService: POST /oauth2/token
+    Note over Client,AuthService: grant_type=authorization_code&code=xxx
+    
+    AuthService->>DynamoDB: Validate and consume auth code
+    DynamoDB->>AuthService: Return stored user credentials
+    
+    AuthService->>Cognito: AdminInitiateAuth with stored credentials
+    Cognito->>AuthService: Return tokens
+    
+    AuthService->>Client: Return access_token, id_token, refresh_token
+```
+
+### 3. Password Grant Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant AuthService
+    participant Cognito
+
+    Client->>AuthService: POST /oauth2/token
+    Note over Client,AuthService: grant_type=password&username=xxx&password=xxx
+    
+    AuthService->>Cognito: AdminInitiateAuth
+    Cognito->>AuthService: Return tokens
+    
+    AuthService->>Client: Return access_token, id_token, refresh_token
+    Note over Client: Use tokens for API authorization
+```
+
+### 4. Client Credentials Flow
+
+```mermaid
+sequenceDiagram
+    participant Service
+    participant AuthService
+    participant DynamoDB
+
+    Service->>AuthService: POST /oauth2/token
+    Note over Service,AuthService: grant_type=client_credentials&client_id=xxx
+    
+    AuthService->>DynamoDB: Store service token
+    AuthService->>Service: Return service access_token
+    Note over Service: Use for service-to-service auth
+```
+
 ## 🚀 Bắt đầu nhanh
 
 ### Prerequisites
 - **Node.js** 18.x hoặc cao hơn
 - **AWS CLI** được cấu hình
 - **Serverless Framework** 2.x
-- **AWS Account** với quyền Lambda, Cognito, DynamoDB
 
 ### 1. Cài đặt dependencies
-
 ```bash
 npm install
 ```
 
 ### 2. Cấu hình environment
-
 ```bash
 cp env.example env.dev
 # Chỉnh sửa env.dev với thông tin AWS của bạn
 ```
 
 ### 3. Deploy lên AWS
-
 ```bash
 npm run deploy:auth
 ```
 
 ### 4. Chạy local server
-
 ```bash
 npm start
 ```
@@ -103,6 +179,7 @@ POST /auth/login                # User login
 GET  /oauth2/authorize          # Authorization endpoint
 POST /oauth2/token              # Token endpoint
 POST /oauth2/refresh            # Refresh token
+GET  /oauth2/userinfo           # User info endpoint
 ```
 
 #### Protected Endpoints (require JWT)
@@ -130,16 +207,15 @@ DELETE /users/{id}              # Delete user (admin only)
 AWS_REGION=us-east-1
 STAGE=dev
 
-# Service Configuration
-SERVICE_NAME=microservice-sso-auth-only
-```
+# Cognito Configuration
+USER_POOL_ID=us-east-1_dXp683hoC
+USER_POOL_CLIENT_ID=h1098nsapivi7j0nn3imjm4i5
+COGNITO_DOMAIN=dev-auth-domain.auth.us-east-1.amazoncognito.com
 
-### Serverless Configuration
-File: `serverless-optimized.yml`
-- Service name: `microservice-sso-auth-only`
-- Runtime: Node.js 18.x
-- Memory: 128MB
-- Timeout: 30s
+# DynamoDB Tables
+AUTH_CODES_TABLE=auth-codes-dev
+SESSIONS_TABLE=sessions-dev
+```
 
 ## 🎯 OAuth2 Flows Support
 
@@ -197,110 +273,76 @@ POST /oauth2/refresh
 
 ## 📊 Database Schema
 
-### Users Table (DynamoDB)
-```javascript
+### Auth Codes Table (DynamoDB)
+```json
 {
-  "userId": "string",           // Primary key
-  "email": "string",            // GSI key
-  "name": "string",
-  "givenName": "string",
-  "familyName": "string",
-  "phone": "string",
-  "role": "user|admin",
-  "status": "active|inactive",
-  "createdAt": "ISO string",
-  "updatedAt": "ISO string"
+  "code": "AUTH_1234567890_abc123",
+  "clientId": "h1098nsapivi7j0nn3imjm4i5",
+  "redirectUri": "http://localhost:3000/callback",
+  "expiresAt": 1640995200,
+  "createdAt": 1640994600000,
+  "metadata": {
+    "scope": "openid profile email",
+    "state": "random_state",
+    "username": "user@example.com"
+  }
 }
 ```
 
 ### Sessions Table (DynamoDB)
-```javascript
+```json
 {
-  "sessionId": "string",        // Primary key
-  "userId": "string",
-  "ttl": "number",              // TTL for auto-deletion
-  "createdAt": "ISO string"
+  "token": "access_token_here",
+  "userId": "user123",
+  "tokenType": "access",
+  "expiresAt": 1640998800,
+  "createdAt": 1640995200000,
+  "clientId": "h1098nsapivi7j0nn3imjm4i5"
 }
 ```
 
 ## 🧪 Testing
 
-### Frontend Testing Dashboard
-Truy cập `http://localhost:3000` để sử dụng testing dashboard với:
-- Configuration panel
-- Authentication testing
-- OAuth2 flow testing
-- Token management
-- User service testing
-
-### Manual API Testing
+### Test OAuth2 Flow
 ```bash
-# Register user
-curl -X POST https://your-api.amazonaws.com/dev/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"Test123!","name":"Test User"}'
+# 1. Start authorization flow
+curl "http://localhost:3000/oauth2/authorize?response_type=code&client_id=h1098nsapivi7j0nn3imjm4i5&redirect_uri=http://localhost:3000/callback"
 
-# Login
-curl -X POST https://your-api.amazonaws.com/dev/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"Test123!"}'
+# 2. Exchange code for tokens
+curl -X POST http://localhost:3000/oauth2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code&code=AUTH_CODE&client_id=h1098nsapivi7j0nn3imjm4i5&redirect_uri=http://localhost:3000/callback"
 
-# Get profile (with JWT)
-curl -X GET https://your-api.amazonaws.com/dev/auth/profile \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+# 3. Use access token
+curl -H "Authorization: Bearer ACCESS_TOKEN" http://localhost:3000/auth/profile
 ```
 
-## 📝 Scripts
-
+### Test Password Grant
 ```bash
-npm start              # Chạy local server
-npm run deploy:auth    # Deploy production
-npm run remove         # Xóa deployment
-npm test              # Chạy tests
-npm run logs          # Xem logs
+curl -X POST http://localhost:3000/oauth2/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&username=user@example.com&password=password123&client_id=h1098nsapivi7j0nn3imjm4i5"
 ```
 
-## 🤝 Integration
+## 📝 Deployment Checklist
 
-### Tích hợp với microservice khác
+- [ ] AWS CLI configured
+- [ ] Environment variables set
+- [ ] Cognito User Pool created
+- [ ] DynamoDB tables created
+- [ ] Lambda functions deployed
+- [ ] API Gateway configured
+- [ ] CORS settings applied
+- [ ] Frontend configured with correct endpoints
 
-1. **Setup JWT Authorizer** trong service mới
-2. **Sử dụng shared Cognito User Pool**
-3. **Validate JWT token** từ Auth Service
-4. **Extract user info** từ token payload
+## 🤝 Contributing
 
-Example:
-```javascript
-// Trong service khác
-const userInfo = event.requestContext.authorizer;
-console.log('User ID:', userInfo.sub);
-console.log('Email:', userInfo.email);
-console.log('Role:', userInfo['custom:role']);
-```
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
-## 📈 Monitoring & Logging
+## 📄 License
 
-- **CloudWatch Logs** cho tất cả Lambda functions
-- **CloudWatch Metrics** cho performance monitoring
-- **AWS X-Ray** cho distributed tracing (optional)
-- **Custom metrics** cho business logic
-
-## 🔮 Roadmap
-
-- [ ] Social login integration (Google, Facebook)
-- [ ] Multi-factor authentication (MFA)
-- [ ] Advanced role management
-- [ ] API rate limiting
-- [ ] Advanced monitoring dashboard
-- [ ] Mobile SDK support
-
-## 📞 Support
-
-Nếu bạn gặp vấn đề hoặc có câu hỏi:
-1. Kiểm tra [Issues](./issues) đã có
-2. Tạo issue mới với template
-3. Liên hệ development team
-
----
-
-**💡 Tip**: Sử dụng testing dashboard tại `http://localhost:3000` để dễ dàng test và debug các API endpoints! 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
