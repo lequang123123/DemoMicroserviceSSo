@@ -1,37 +1,242 @@
 const AWS = require('aws-sdk');
 const dynamodb = new AWS.DynamoDB.DocumentClient();
+const cognito = new AWS.CognitoIdentityServiceProvider();
 
-const USERS_TABLE = process.env.USERS_TABLE_NAME;
+const USERS_TABLE = process.env.USERS_TABLE || process.env.USERS_TABLE_NAME;
+const USER_POOL_ID = process.env.USER_POOL_ID;
+
+// CORS headers for all responses
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+};
 
 exports.handler = async (event) => {
-    console.log('Event:', JSON.stringify(event, null, 2));
-    
     try {
-        const { action, userId, requesterId, body } = event;
+        console.log('Event:', JSON.stringify(event));
         
-        switch (action) {
-        case 'getProfile':
-            return await getUserProfile(userId);
-        case 'updateProfile':
-            return await updateUserProfile(userId, JSON.parse(body));
-        case 'getUser':
-            return await getUser(userId, requesterId);
-        case 'createUser':
-            return await createUser(JSON.parse(body));
-        case 'deleteUser':
-            return await deleteUser(userId, requesterId);
-        case 'listUsers':
-            return await listUsers(requesterId);
-        default:
-            return errorResponse(400, 'Invalid action');
+        const { httpMethod, path, body, pathParameters } = event;
+        const requestBody = body ? JSON.parse(body) : {};
+        const userId = pathParameters?.id;
+        
+        // Get user info from JWT authorizer context
+        const userContext = event.requestContext?.authorizer || {};
+        const currentUserId = userContext.sub || userContext.userId;
+        const userEmail = userContext.email;
+        
+        // Route handling based on path and method
+        if (path === '/users' && httpMethod === 'GET') {
+            return await listUsers(currentUserId, userContext);
         }
+        
+        if (path === '/users' && httpMethod === 'POST') {
+            return await handleUserAction(requestBody, currentUserId, userContext);
+        }
+        
+        if (path.startsWith('/users/') && userId && httpMethod === 'GET') {
+            return await getUserById(userId, currentUserId, userContext);
+        }
+        
+        if (path.startsWith('/users/') && userId && httpMethod === 'PUT') {
+            return await updateUser(userId, requestBody, currentUserId, userContext);
+        }
+        
+        if (path.startsWith('/users/') && userId && httpMethod === 'DELETE') {
+            return await deleteUser(userId, currentUserId, userContext);
+        }
+        
+        return {
+            statusCode: 404,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Endpoint not found' })
+        };
+        
     } catch (error) {
         console.error('Error:', error);
-        return errorResponse(500, 'Internal server error');
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Internal server error', error: error.message })
+        };
     }
 };
 
-// Get user profile
+// === USER MANAGEMENT FUNCTIONS ===
+
+async function listUsers(currentUserId, userContext) {
+    try {
+        // Check if user has admin role or list their own profile
+        const isAdmin = await checkAdminRole(currentUserId);
+        
+        if (!isAdmin) {
+            // Non-admin users can only see their own profile
+            return await getUserProfile(currentUserId);
+        }
+        
+        // Admin can see all users
+        const result = await dynamodb.scan({
+            TableName: USERS_TABLE,
+            ProjectionExpression: 'userId, email, #name, givenName, familyName, createdAt, updatedAt, #status, #role',
+            ExpressionAttributeNames: {
+                '#name': 'name',
+                '#status': 'status',
+                '#role': 'role'
+            }
+        }).promise();
+        
+        return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({
+                users: result.Items || [],
+                count: result.Count,
+                isAdmin: true
+            })
+        };
+    } catch (error) {
+        console.error('Error listing users:', error);
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Error retrieving users' })
+        };
+    }
+}
+
+async function handleUserAction(requestBody, currentUserId, userContext) {
+    const { action } = requestBody;
+    
+    try {
+        switch (action) {
+            case 'getProfile':
+                return await getUserProfile(currentUserId);
+            case 'updateProfile':
+                return await updateUserProfile(currentUserId, requestBody.userData);
+            case 'syncFromCognito':
+                return await syncUserFromCognito(currentUserId, userContext);
+            case 'createUser':
+                return await createUser(requestBody.userData, currentUserId);
+            case 'list':
+                return await listUsers(currentUserId, userContext);
+            default:
+                return {
+                    statusCode: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ message: 'Invalid action' })
+                };
+        }
+    } catch (error) {
+        console.error('Error handling user action:', error);
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Error processing action' })
+        };
+    }
+}
+
+async function getUserById(userId, currentUserId, userContext) {
+    try {
+        // Users can access their own profile, admins can access any profile
+        const isAdmin = await checkAdminRole(currentUserId);
+        
+        if (!isAdmin && userId !== currentUserId) {
+            return {
+                statusCode: 403,
+                headers: corsHeaders,
+                body: JSON.stringify({ message: 'Access denied' })
+            };
+        }
+        
+        return await getUserProfile(userId);
+    } catch (error) {
+        console.error('Error getting user by ID:', error);
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Error retrieving user' })
+        };
+    }
+}
+
+async function updateUser(userId, userData, currentUserId, userContext) {
+    try {
+        // Users can update their own profile, admins can update any profile
+        const isAdmin = await checkAdminRole(currentUserId);
+        
+        if (!isAdmin && userId !== currentUserId) {
+            return {
+                statusCode: 403,
+                headers: corsHeaders,
+                body: JSON.stringify({ message: 'Access denied' })
+            };
+        }
+        
+        return await updateUserProfile(userId, userData);
+    } catch (error) {
+        console.error('Error updating user:', error);
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Error updating user' })
+        };
+    }
+}
+
+async function deleteUser(userId, currentUserId, userContext) {
+    try {
+        // Only admins can delete users
+        const isAdmin = await checkAdminRole(currentUserId);
+        
+        if (!isAdmin) {
+            return {
+                statusCode: 403,
+                headers: corsHeaders,
+                body: JSON.stringify({ message: 'Admin access required' })
+            };
+        }
+        
+        // Delete from DynamoDB
+        await dynamodb.delete({
+            TableName: USERS_TABLE,
+            Key: { userId }
+        }).promise();
+        
+        // Optionally delete from Cognito too
+        try {
+            const user = await dynamodb.get({
+                TableName: USERS_TABLE,
+                Key: { userId }
+            }).promise();
+            
+            if (user.Item?.email) {
+                await cognito.adminDeleteUser({
+                    UserPoolId: USER_POOL_ID,
+                    Username: user.Item.email
+                }).promise();
+            }
+        } catch (cognitoError) {
+            console.log('Could not delete from Cognito:', cognitoError.message);
+        }
+        
+        return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'User deleted successfully' })
+        };
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Error deleting user' })
+        };
+    }
+}
+
+// === HELPER FUNCTIONS ===
+
 async function getUserProfile(userId) {
     try {
         const result = await dynamodb.get({
@@ -40,23 +245,45 @@ async function getUserProfile(userId) {
         }).promise();
         
         if (!result.Item) {
-            return errorResponse(404, 'User not found');
+            // If user doesn't exist in DynamoDB, try to create from Cognito
+            try {
+                const cognitoUser = await cognito.adminGetUser({
+                    UserPoolId: USER_POOL_ID,
+                    Username: userId
+                }).promise();
+                
+                // Create user in DynamoDB from Cognito data
+                const userData = extractUserDataFromCognito(cognitoUser);
+                await createUserInDynamoDB(userData);
+                
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify(userData)
+                };
+            } catch (cognitoError) {
+                return {
+                    statusCode: 404,
+                    headers: corsHeaders,
+                    body: JSON.stringify({ message: 'User not found' })
+                };
+            }
         }
         
-        // Remove sensitive information
-        const { password: _password, ...userProfile } = result.Item;
-        
-        return successResponse(userProfile);
+        return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify(result.Item)
+        };
     } catch (error) {
         console.error('Error getting user profile:', error);
         throw error;
     }
 }
 
-// Update user profile
 async function updateUserProfile(userId, userData) {
     try {
-        const { email, firstName, lastName, phone, address } = userData;
+        const { email, name, givenName, familyName, phone, address } = userData;
         
         const updateExpression = [];
         const expressionAttributeNames = {};
@@ -68,96 +295,77 @@ async function updateUserProfile(userId, userData) {
             expressionAttributeValues[':email'] = email;
         }
         
-        if (firstName) {
-            updateExpression.push('#firstName = :firstName');
-            expressionAttributeNames['#firstName'] = 'firstName';
-            expressionAttributeValues[':firstName'] = firstName;
+        if (name) {
+            updateExpression.push('#name = :name');
+            expressionAttributeNames['#name'] = 'name';
+            expressionAttributeValues[':name'] = name;
         }
         
-        if (lastName) {
-            updateExpression.push('#lastName = :lastName');
-            expressionAttributeNames['#lastName'] = 'lastName';
-            expressionAttributeValues[':lastName'] = lastName;
+        if (givenName) {
+            updateExpression.push('givenName = :givenName');
+            expressionAttributeValues[':givenName'] = givenName;
+        }
+        
+        if (familyName) {
+            updateExpression.push('familyName = :familyName');
+            expressionAttributeValues[':familyName'] = familyName;
         }
         
         if (phone) {
-            updateExpression.push('#phone = :phone');
-            expressionAttributeNames['#phone'] = 'phone';
+            updateExpression.push('phone = :phone');
             expressionAttributeValues[':phone'] = phone;
         }
         
         if (address) {
-            updateExpression.push('#address = :address');
-            expressionAttributeNames['#address'] = 'address';
+            updateExpression.push('address = :address');
             expressionAttributeValues[':address'] = address;
         }
         
-        updateExpression.push('#updatedAt = :updatedAt');
-        expressionAttributeNames['#updatedAt'] = 'updatedAt';
+        updateExpression.push('updatedAt = :updatedAt');
         expressionAttributeValues[':updatedAt'] = new Date().toISOString();
         
         const result = await dynamodb.update({
             TableName: USERS_TABLE,
             Key: { userId },
             UpdateExpression: `SET ${updateExpression.join(', ')}`,
-            ExpressionAttributeNames: expressionAttributeNames,
+            ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
             ExpressionAttributeValues: expressionAttributeValues,
             ReturnValues: 'ALL_NEW'
         }).promise();
         
-        // Remove sensitive information
-        const { password: _password, ...userProfile } = result.Attributes;
-        
-        return successResponse(userProfile);
+        return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify(result.Attributes)
+        };
     } catch (error) {
         console.error('Error updating user profile:', error);
         throw error;
     }
 }
 
-// Get user by ID (admin only)
-async function getUser(userId, requesterId) {
+async function createUser(userData, requesterId) {
     try {
         // Check if requester is admin
-        const requester = await dynamodb.get({
-            TableName: USERS_TABLE,
-            Key: { userId: requesterId }
-        }).promise();
+        const isAdmin = await checkAdminRole(requesterId);
         
-        if (!requester.Item || requester.Item.role !== 'admin') {
-            return errorResponse(403, 'Insufficient permissions');
+        if (!isAdmin) {
+            return {
+                statusCode: 403,
+                headers: corsHeaders,
+                body: JSON.stringify({ message: 'Admin access required' })
+            };
         }
         
-        const result = await dynamodb.get({
-            TableName: USERS_TABLE,
-            Key: { userId }
-        }).promise();
-        
-        if (!result.Item) {
-            return errorResponse(404, 'User not found');
-        }
-        
-        // Remove sensitive information
-        const { password: _password, ...userProfile } = result.Item;
-        
-        return successResponse(userProfile);
-    } catch (error) {
-        console.error('Error getting user:', error);
-        throw error;
-    }
-}
-
-// Create user
-async function createUser(userData) {
-    try {
-        const { email, firstName, lastName, phone, role = 'user' } = userData;
+        const { email, name, givenName, familyName, phone, role = 'user' } = userData;
         const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         const user = {
             userId,
             email,
-            firstName,
-            lastName,
+            name: name || `${givenName || ''} ${familyName || ''}`.trim(),
+            givenName,
+            familyName,
             phone,
             role,
             createdAt: new Date().toISOString(),
@@ -171,96 +379,98 @@ async function createUser(userData) {
             ConditionExpression: 'attribute_not_exists(userId)'
         }).promise();
         
-        return successResponse(user);
+        return {
+            statusCode: 201,
+            headers: corsHeaders,
+            body: JSON.stringify(user)
+        };
     } catch (error) {
         console.error('Error creating user:', error);
         throw error;
     }
 }
 
-// Delete user (admin only)
-async function deleteUser(userId, requesterId) {
+async function syncUserFromCognito(userId, userContext) {
     try {
-        // Check if requester is admin
-        const requester = await dynamodb.get({
-            TableName: USERS_TABLE,
-            Key: { userId: requesterId }
+        const cognitoUser = await cognito.adminGetUser({
+            UserPoolId: USER_POOL_ID,
+            Username: userContext.email || userId
         }).promise();
         
-        if (!requester.Item || requester.Item.role !== 'admin') {
-            return errorResponse(403, 'Insufficient permissions');
-        }
+        const userData = extractUserDataFromCognito(cognitoUser);
+        userData.userId = userId;
         
-        await dynamodb.delete({
+        await dynamodb.put({
             TableName: USERS_TABLE,
-            Key: { userId }
+            Item: userData
         }).promise();
         
-        return successResponse({ message: 'User deleted successfully' });
+        return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({
+                message: 'User synced from Cognito',
+                user: userData
+            })
+        };
     } catch (error) {
-        console.error('Error deleting user:', error);
-        throw error;
+        console.error('Error syncing user from Cognito:', error);
+        return {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'Error syncing user' })
+        };
     }
 }
 
-// List users (admin only)
-async function listUsers(requesterId) {
+async function checkAdminRole(userId) {
     try {
-        // Check if requester is admin
-        const requester = await dynamodb.get({
+        const result = await dynamodb.get({
             TableName: USERS_TABLE,
-            Key: { userId: requesterId }
-        }).promise();
-        
-        if (!requester.Item || requester.Item.role !== 'admin') {
-            return errorResponse(403, 'Insufficient permissions');
-        }
-        
-        const result = await dynamodb.scan({
-            TableName: USERS_TABLE,
-            ProjectionExpression: 'userId, email, firstName, lastName, #role, createdAt, #status',
+            Key: { userId },
+            ProjectionExpression: '#role',
             ExpressionAttributeNames: {
-                '#role': 'role',
-                '#status': 'status'
+                '#role': 'role'
             }
         }).promise();
         
-        return successResponse(result.Items);
+        return result.Item?.role === 'admin';
     } catch (error) {
-        console.error('Error listing users:', error);
-        throw error;
+        console.error('Error checking admin role:', error);
+        return false;
     }
 }
 
-// Helper functions
-function successResponse(data) {
+function extractUserDataFromCognito(cognitoUser) {
+    const attributes = {};
+    cognitoUser.UserAttributes.forEach(attr => {
+        attributes[attr.Name] = attr.Value;
+    });
+    
     return {
-        statusCode: 200,
-        headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        },
-        body: JSON.stringify({
-            success: true,
-            data: data
-        })
+        userId: cognitoUser.Username,
+        email: attributes.email,
+        name: attributes.name,
+        givenName: attributes.given_name,
+        familyName: attributes.family_name,
+        phone: attributes.phone_number,
+        createdAt: cognitoUser.UserCreateDate.toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: cognitoUser.UserStatus.toLowerCase(),
+        role: 'user' // Default role
     };
 }
 
-function errorResponse(statusCode, message) {
-    return {
-        statusCode: statusCode,
-        headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        },
-        body: JSON.stringify({
-            success: false,
-            error: message
-        })
-    };
+async function createUserInDynamoDB(userData) {
+    try {
+        await dynamodb.put({
+            TableName: USERS_TABLE,
+            Item: userData
+        }).promise();
+        
+        return userData;
+    } catch (error) {
+        console.error('Error creating user in DynamoDB:', error);
+        throw error;
+    }
 } 

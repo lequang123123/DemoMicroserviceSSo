@@ -1,4 +1,4 @@
-service: microservice-sso-optimized
+service: microservice-auth-v2
 
 provider:
   name: aws
@@ -14,8 +14,21 @@ provider:
     USER_POOL_ID: !Ref CognitoUserPool
     USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClient
     USERS_TABLE: !Ref UsersTable
-    PRODUCTS_TABLE: !Ref ProductsTable
-    ORDERS_TABLE: !Ref OrdersTable
+    AUTH_CODES_TABLE: ${self:provider.stage}-auth-codes
+    SESSIONS_TABLE: ${self:provider.stage}-auth-sessions
+  apiGateway:
+    shouldStartNameWithService: true
+    cors:
+      origin: '*'
+      headers:
+        - Content-Type
+        - X-Amz-Date
+        - Authorization
+        - X-Api-Key
+        - X-Amz-Security-Token
+        - X-Amz-User-Agent
+      allowCredentials: true
+      maxAge: 86400
   iam:
     role:
       statements:
@@ -44,6 +57,13 @@ provider:
           Action:
             - lambda:InvokeFunction
           Resource: "arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${self:provider.stage}-*"
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:DeleteItem
+          Resource: 
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.stage}-auth-codes"
 
 # Individual packaging for each function
 package:
@@ -81,7 +101,7 @@ layers:
   commonDependencies:
     path: layers/common-dependencies
     name: ${self:provider.stage}-common-dependencies
-    description: Common dependencies for all microservices
+    description: Common dependencies for auth and user services
     compatibleRuntimes:
       - nodejs18.x
     retain: false
@@ -113,16 +133,19 @@ functions:
         - 'lambda/cognito-authorizer/cognito-authorizer.js'
         - 'shared/aws-config.js'
 
+  # 🔐 Authentication Service - Core OAuth2 + SSO functionality
   authService:
     handler: lambda/auth-service-minimal/auth-service-minimal.handler
     layers:
       - { Ref: CommonDependenciesLambdaLayer }
-
     package:
       patterns:
         - '!**'
         - 'lambda/auth-service-minimal/auth-service-minimal.js'
         - 'shared/aws-config.js'
+    environment:
+      SESSIONS_TABLE: !Ref SessionsTable
+      DOMAIN_NAME: ${self:custom.domain}
     events:
       # Public endpoints (no auth needed)
       - http:
@@ -141,15 +164,59 @@ functions:
       - http:
           path: /oauth2/authorize
           method: get
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: true
+            maxAge: 86400
       - http:
           path: /oauth2/token
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: true
+            maxAge: 86400
+      - http:
+          path: /oauth2/callback
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: true
+            maxAge: 86400
       - http:
           path: /oauth2/refresh
           method: post
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+              - X-Amz-User-Agent
+            allowCredentials: true
+            maxAge: 86400
       # Protected endpoints (requires JWT)
       - http:
           path: /auth/profile
@@ -166,12 +233,32 @@ functions:
             name: cognitoAuthorizer
             resultTtlInSeconds: 300
 
+  # New userinfo endpoint
+  userinfoEndpoint:
+    handler: lambda/userinfo-endpoint/userinfo-endpoint.handler
+    layers:
+      - { Ref: CommonDependenciesLambdaLayer }
+    package:
+      patterns:
+        - '!**'
+        - 'lambda/userinfo-endpoint/userinfo-endpoint.js'
+        - 'shared/aws-config.js'
+    events:
+      - http:
+          path: /oauth2/userinfo
+          method: get
+          cors: true
+          authorizer:
+            name: cognitoAuthorizer
+            resultTtlInSeconds: 300
+
+  # 👤 User Management Service - User CRUD operations
   userService:
     handler: lambda/user-service/user-service.handler
     layers:
       - { Ref: CommonDependenciesLambdaLayer }
     environment:
-      USERS_TABLE_NAME: ${self:provider.stage}-users
+      USERS_TABLE_NAME: ${self:provider.stage}-auth-users
     package:
       patterns:
         - '!**'
@@ -200,77 +287,16 @@ functions:
           authorizer:
             name: cognitoAuthorizer
             resultTtlInSeconds: 300
-
-  productService:
-    handler: lambda/product-service/product-service.handler
-    layers:
-      - { Ref: CommonDependenciesLambdaLayer }
-    package:
-      patterns:
-        - '!**'
-        - 'lambda/product-service/product-service.js'
-        - 'shared/aws-config.js'
-    events:
-      # Public endpoints
       - http:
-          path: /products
-          method: get
-          cors: true
-      - http:
-          path: /products/{id}
-          method: get
-          cors: true
-      # Protected endpoints (admin only)
-      - http:
-          path: /products
-          method: post
-          cors: true
-          authorizer:
-            name: cognitoAuthorizer
-            resultTtlInSeconds: 300
-      - http:
-          path: /products/{id}
+          path: /users/{id}
           method: put
           cors: true
           authorizer:
             name: cognitoAuthorizer
             resultTtlInSeconds: 300
       - http:
-          path: /products/{id}
+          path: /users/{id}
           method: delete
-          cors: true
-          authorizer:
-            name: cognitoAuthorizer
-            resultTtlInSeconds: 300
-
-  orderService:
-    handler: lambda/order-service/order-service.handler
-    layers:
-      - { Ref: CommonDependenciesLambdaLayer }
-    package:
-      patterns:
-        - '!**'
-        - 'lambda/order-service/order-service.js'
-        - 'shared/aws-config.js'
-    events:
-      # All order endpoints require authentication (user's own orders)
-      - http:
-          path: /orders
-          method: get
-          cors: true
-          authorizer:
-            name: cognitoAuthorizer
-            resultTtlInSeconds: 300
-      - http:
-          path: /orders/{id}
-          method: get
-          cors: true
-          authorizer:
-            name: cognitoAuthorizer
-            resultTtlInSeconds: 300
-      - http:
-          path: /orders
-          method: post
           cors: true
           authorizer:
             name: cognitoAuthorizer
@@ -278,11 +304,74 @@ functions:
 
 resources:
   Resources:
-    # DynamoDB Tables (Protected from deletion)
+    # Cognito User Pool
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:provider.stage}-user-pool
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: true
+            RequireUppercase: true
+        Schema:
+          - Name: email
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+          - Name: name
+            AttributeDataType: String
+            Mutable: true
+            Required: true
+
+    # Cognito User Pool Client
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:provider.stage}-user-pool-client
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
+        ExplicitAuthFlows:
+          - ADMIN_NO_SRP_AUTH
+          - USER_PASSWORD_AUTH
+        AllowedOAuthFlows:
+          - implicit
+          - code
+        AllowedOAuthScopes:
+          - phone
+          - email
+          - openid
+          - profile
+        CallbackURLs:
+          - http://localhost:3000/callback
+        LogoutURLs:
+          - http://localhost:3000/logout
+        AllowedOAuthFlowsUserPoolClient: true
+        PreventUserExistenceErrors: ENABLED
+        RefreshTokenValidity: 30
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        TokenValidityUnits:
+          AccessToken: hours
+          IdToken: hours
+          RefreshToken: days
+
+    # Cognito User Pool Domain
+    CognitoUserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: ${self:provider.stage}-auth-domain
+        UserPoolId: !Ref CognitoUserPool
+
+    # Users Table
     UsersTable:
       Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain          # 🛡️ Protect user data
-      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
         TableName: ${self:provider.stage}-users
         AttributeDefinitions:
@@ -293,108 +382,75 @@ resources:
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
 
-    ProductsTable:
-      Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain          # 🛡️ Protect product data
-      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
-      Properties:
-        TableName: ${self:provider.stage}-products
-        AttributeDefinitions:
-          - AttributeName: productId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: productId
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-
-    OrdersTable:
-      Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain          # 🛡️ Protect order data
-      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
-      Properties:
-        TableName: ${self:provider.stage}-orders
-        AttributeDefinitions:
-          - AttributeName: orderId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: orderId
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-
+    # Sessions Table
     SessionsTable:
       Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain          # 🛡️ Protect session data
-      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
       Properties:
-        TableName: ${self:provider.stage}-sessions
+        TableName: ${self:provider.stage}-auth-sessions
         AttributeDefinitions:
           - AttributeName: sessionId
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: accessToken
             AttributeType: S
         KeySchema:
           - AttributeName: sessionId
             KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIdIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: AccessTokenIndex
+            KeySchema:
+              - AttributeName: accessToken
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
 
-    # Cognito User Pool (Protected from deletion)
-    CognitoUserPool:
-      Type: AWS::Cognito::UserPool
-      DeletionPolicy: Retain          # 🛡️ Protect from deletion
-      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
-      Properties:
-        UserPoolName: ${self:provider.stage}-microservice-sso-user-pool
-        UsernameAttributes:
-          - email
-        AutoVerifiedAttributes:
-          - email
-        Policies:
-          PasswordPolicy:
-            MinimumLength: 8
-            RequireUppercase: true
-            RequireLowercase: true
-            RequireNumbers: true
-            RequireSymbols: false
-
-    # Cognito User Pool Client (Protected from deletion)
-    CognitoUserPoolClient:
-      Type: AWS::Cognito::UserPoolClient
-      DeletionPolicy: Retain          # 🛡️ Protect from deletion
-      UpdateReplacePolicy: Retain     # 🛡️ Protect from replacement
-      Properties:
-        ClientName: ${self:provider.stage}-microservice-sso-client
-        UserPoolId: !Ref CognitoUserPool
-        GenerateSecret: false
-        ExplicitAuthFlows:
-          - ADMIN_NO_SRP_AUTH
-          - USER_PASSWORD_AUTH
-        TokenValidityUnits:
-          AccessToken: hours
-          IdToken: hours
-          RefreshToken: days
-        AccessTokenValidity: 1
-        IdTokenValidity: 1
-        RefreshTokenValidity: 30
-
   Outputs:
+    ApiGatewayUrl:
+      Description: API Gateway endpoint URL for auth and user services
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api."
+            - Ref: AWS::Region
+            - ".amazonaws.com/"
+            - ${self:provider.stage}
+      Export:
+        Name: ${self:provider.stage}-auth-ApiGatewayUrl
+    
     UserPoolId:
       Description: Cognito User Pool ID
       Value: !Ref CognitoUserPool
       Export:
-        Name: ${self:provider.stage}-optimized-UserPoolId
+        Name: ${self:provider.stage}-auth-UserPoolId
     
     UserPoolClientId:
       Description: Cognito User Pool Client ID
       Value: !Ref CognitoUserPoolClient
       Export:
-        Name: ${self:provider.stage}-optimized-UserPoolClientId
+        Name: ${self:provider.stage}-auth-UserPoolClientId
     
     UsersTableName:
       Description: DynamoDB Users Table Name
       Value: !Ref UsersTable
       Export:
-        Name: ${self:provider.stage}-optimized-UsersTableName
+        Name: ${self:provider.stage}-auth-UsersTableName
 
 plugins:
   - serverless-offline 
+
+custom:
+  domain: api.example.com # Replace with your domain
+  # Add other custom variables here 

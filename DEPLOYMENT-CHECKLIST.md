@@ -59,7 +59,7 @@ npm run backup:config
 npm run deploy:optimized
 
 # Step 3: Verify
-curl https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/health
+curl https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/health
 ```
 
 ### **Option 3: Blue-Green Deployment**
@@ -200,7 +200,7 @@ aws cloudformation describe-stack-events --stack-name your-stack
 ### **Important Resource IDs (Current)**
 - **User Pool**: `us-east-1_8ML8938m2`
 - **Client ID**: `1rtq4ll07cvvatg432efpnjtta`
-- **API URL**: `https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev`
+- **API URL**: `https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev`
 
 ---
 

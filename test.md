@@ -4,7 +4,7 @@ Comprehensive testing commands for microservice OAuth2 & Single Sign-On function
 
 ## 🌐 **API Base URL**
 ```bash
-BASE_URL="https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev"
+BASE_URL="https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev"
 ```
 
 ## 📋 **Test Suite Overview**
@@ -28,7 +28,7 @@ BASE_URL="https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev"
 
 ```bash
 # Basic health check
-curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/health
+curl -X GET https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/health
 ```
 
 **Expected Response:**
@@ -66,7 +66,7 @@ curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/health
 
 ```bash
 # Register new user
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/register \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "sso-test@example.com",
@@ -90,7 +90,7 @@ curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/reg
 
 ```bash
 # Login to get JWT tokens
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/login \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "sso-test@example.com",
@@ -120,7 +120,7 @@ curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/log
 
 ```bash
 # Get OAuth2 & SSO configuration
-curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/test
+curl -X GET https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/auth/test
 ```
 
 **Expected Response:**
@@ -153,7 +153,7 @@ curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/test
 
 ```bash
 # Service-to-service authentication
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/oauth2/token \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/oauth2/token \
   -H "Content-Type: application/json" \
   -d '{
     "grant_type": "client_credentials",
@@ -207,7 +207,7 @@ https://example.com/callback?code=REAL_CODE_HERE&state=
 # Replace ACCESS_TOKEN with your JWT token from login
 ACCESS_TOKEN="eyJraWQiOiJTZHBGSFhUaVY5Z05YQ29GcHBvb0UxM0I1SXBac2tTZmhpV2dPZkhUQm1jPSIsImFsZyI6IlJTMjU2In0..."
 
-curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/profile \
+curl -X GET https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/auth/profile \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
@@ -215,11 +215,11 @@ curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/auth/prof
 
 ```bash
 # Cross-service SSO access with JWT
-curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/users \
+curl -X GET https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/users \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # With action parameter
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/users \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/users \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -232,10 +232,10 @@ curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/users \
 
 ```bash
 # Public endpoint (no auth)
-curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/products
+curl -X GET https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/products
 
 # Protected endpoint (admin only)
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/products \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/products \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -252,11 +252,11 @@ curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/products
 
 ```bash
 # User's own orders (SSO protected)
-curl -X GET https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/orders \
+curl -X GET https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/orders \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # Create order
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/orders \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/orders \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -277,7 +277,7 @@ curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/orders \
 # Refresh expired access token
 REFRESH_TOKEN="eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ..."
 
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/oauth2/refresh \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/oauth2/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "'$REFRESH_TOKEN'"
@@ -506,13 +506,13 @@ node serve.js
 #### **3. 🔑 Password Grant Flow (Easiest)**
 ```bash
 # Direct authentication - NO domain needed
-curl -X POST https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/oauth2/token \
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/oauth2/token \
   -H "Content-Type: application/json" \
   -d '{
     "grant_type": "password",
     "username": "sso-test@example.com",
     "password": "SSOTest123!",
-    "client_id": "1rtq4ll07cvvatg432efpnjtta"
+    "client_id": "h1098nsapivi7j0nn3imjm4i5"
   }'
 ```
 
@@ -559,7 +559,7 @@ aws cognito-idp describe-user-pool-domain --domain your-domain --region us-east-
 ### **🌐 Test ngay với Frontend Dashboard:**
 ```bash
 # Get authorization URL từ backend
-curl -X GET "https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/oauth2/authorize?response_type=code&client_id=1rtq4ll07cvvatg432efpnjtta&redirect_uri=http://localhost:3000/callback&scope=openid+email+profile"
+curl -X GET "https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/oauth2/authorize?response_type=code&client_id=1rtq4ll07cvvatg432efpnjtta&redirect_uri=http://localhost:3000/callback&scope=openid+email+profile"
 
 # Response:
 {
@@ -568,3 +568,6 @@ curl -X GET "https://f0ct5flua5.execute-api.us-east-1.amazonaws.com/dev/oauth2/a
   "instructions": "Use /oauth2/token with grant_type=password for direct token exchange"
 }
 ``` 
+
+
+curl -X POST https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev/auth/login -H "Content-Type: application/json" -d '{"email":"sso-test@example.com","password":"Test123!"}'

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth2 Demo - Working Flow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .step {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 OAuth2 Demo - Working Flow</h1>
+        <p>This demo shows the complete OAuth2 authorization code flow working with our microservice.</p>
+        
+        <div class="step">
+            <h3>Step 1: Start OAuth2 Authorization</h3>
+            <p>Click the button below to start the OAuth2 authorization flow:</p>
+            <button onclick="startOAuth2Flow()">🚀 Start OAuth2 Flow</button>
+            <div id="step1Result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Exchange Authorization Code for Token</h3>
+            <p>After getting the authorization code, exchange it for access token:</p>
+            <button onclick="exchangeToken()">🔄 Exchange Token</button>
+            <div id="step2Result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Get User Info</h3>
+            <p>Use the access token to get user information:</p>
+            <button onclick="getUserInfo()">👤 Get User Info</button>
+            <div id="step3Result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 4: Test Direct Login (Password Grant)</h3>
+            <p>Test direct login with username/password:</p>
+            <button onclick="directLogin()">🔑 Direct Login</button>
+            <div id="step4Result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 5: Test Service Account (Client Credentials)</h3>
+            <p>Test service-to-service authentication:</p>
+            <button onclick="clientCredentials()">🏢 Client Credentials</button>
+            <div id="step5Result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://3en4uopxs1.execute-api.us-east-1.amazonaws.com/dev';
+        const API_COGNITO = 'https://dev-auth-domain.auth.us-east-1.amazoncognito.com';
+        let currentAuthCode = '';
+        let currentAccessToken = '';
+
+        async function startOAuth2Flow() {
+            try {
+                showResult('step1Result', 'Starting OAuth2 authorization flow...', 'info');
+                
+                // Step 1: Get authorization code
+                const authUrl = `${API_COGNITO}/oauth2/authorize?response_type=code&client_id=h1098nsapivi7j0nn3imjm4i5&redirect_uri=http://localhost:3000/callback&scope=openid%20profile%20email&state=demo123`;
+                
+                window.location.href = authUrl;
+            } catch (error) {
+                showResult('step1Result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function exchangeToken() {
+            try {
+        
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                currentAuthCode = code;
+                
+                showResult('step2Result', 'Exchanging authorization code for access token...', 'info');
+                
+                const response = await fetch(`${API_BASE}/oauth2/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code: currentAuthCode,
+                        redirect_uri: 'http://localhost:3000/callback',
+                        client_id: 'h1098nsapivi7j0nn3imjm4i5'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.access_token) {
+                    currentAccessToken = result.access_token;
+                    showResult('step2Result', `✅ Token Exchange Successful!\n\n${JSON.stringify(result, null, 2)}`, 'success');
+                } else {
+                    showResult('step2Result', `❌ Token Exchange Failed:\n\n${JSON.stringify(result, null, 2)}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('step2Result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getUserInfo() {
+            try {
+                if (!currentAccessToken) {
+                    showResult('step3Result', '❌ No access token available. Please complete Step 2 first.', 'error');
+                    return;
+                }
+                
+                showResult('step3Result', 'Getting user information...', 'info');
+                
+                const response = await fetch(`${API_BASE}/oauth2/userinfo`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentAccessToken}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult('step3Result', `✅ User Info Retrieved!\n\n${JSON.stringify(result, null, 2)}`, 'success');
+                } else {
+                    showResult('step3Result', `❌ Failed to get user info:\n\n${JSON.stringify(result, null, 2)}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('step3Result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function directLogin() {
+            try {
+                showResult('step4Result', 'Testing direct login with password grant...', 'info');
+                
+                const response = await fetch(`${API_BASE}/oauth2/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'password',
+                        username: 'sso-test@example.com',
+                        password: 'Test123!',
+                        client_id: 'h1098nsapivi7j0nn3imjm4i5'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.access_token) {
+                    showResult('step4Result', `✅ Direct Login Successful!\n\n${JSON.stringify(result, null, 2)}`, 'success');
+                } else {
+                    showResult('step4Result', `❌ Direct Login Failed:\n\n${JSON.stringify(result, null, 2)}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('step4Result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function clientCredentials() {
+            try {
+                showResult('step5Result', 'Testing client credentials flow...', 'info');
+                
+                const response = await fetch(`${API_BASE}/oauth2/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'client_credentials',
+                        client_id: 'h1098nsapivi7j0nn3imjm4i5'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.access_token) {
+                    showResult('step5Result', `✅ Client Credentials Successful!\n\n${JSON.stringify(result, null, 2)}`, 'success');
+                } else {
+                    showResult('step5Result', `❌ Client Credentials Failed:\n\n${JSON.stringify(result, null, 2)}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult('step5Result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showResult(elementId, data, type) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.textContent = data;
+        }
+    </script>
+</body>
+</html> 
