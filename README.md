@@ -1,348 +1,311 @@
-# 🔐 Microservice OAuth2 SSO Authentication
+# OAuth2 Implementation Documentation
 
-Microservice authentication system sử dụng **AWS Lambda**, **Amazon Cognito**, và **OAuth2** để cung cấp Single Sign-On (SSO) cho các ứng dụng.
+## 🚀 OAuth2 & SSO Test Server
 
-## 🎯 Tính năng chính
-
-- **OAuth2 Authorization Code Flow** - Chuẩn OAuth2 hoàn chỉnh
-- **Password Grant Flow** - Đăng nhập trực tiếp với email/password  
-- **Client Credentials Flow** - Xác thực service-to-service
-- **Refresh Token** - Gia hạn token tự động
-- **Amazon Cognito Integration** - User pool management
-- **JWT-based SSO** - Single Sign-On across microservices
-
-## 🏗️ Kiến trúc hệ thống
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Auth Service  │    │  User Service   │
-│                 │    │                 │    │                 │
-│ • OAuth2 Login  │────│ • Authorization │────│ • User CRUD     │
-│ • JWT Storage   │    │ • Token Issue   │    │ • Profile Mgmt  │
-│ • API Calls     │    │ • SSO Provider  │    │ • Role Check    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │              ┌─────────────────┐               │
-         │              │   API Gateway   │               │
-         │              │                 │               │
-         └──────────────│ • CORS Handling │───────────────┘
-                        │ • Route Management│
-                        │ • Authorization │
-                        └─────────────────┘
-                                 │
-                    ┌─────────────────────────────┐
-                    │       AWS Resources         │
-                    │                             │
-                    │ • Cognito User Pool         │
-                    │ • DynamoDB Tables          │
-                    │ • Lambda Functions         │
-                    │ • CloudFormation           │
-                    └─────────────────────────────┘
-```
-
-## 🔄 OAuth2 Flow Sequence Diagrams
-
-### 1. Authorization Code Flow (Cognito Hosted UI)
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Cognito
-    participant AuthService
-
-    Client->>Cognito: GET cognito-domain/oauth2/authorize
-    Note over Client,Cognito: response_type=code&client_id=xxx&redirect_uri=xxx
-    
-    Cognito->>Client: Redirect to login page
-    Client->>Cognito: POST credentials
-    Cognito->>Client: 302 Redirect with auth code
-    
-    Client->>AuthService: POST /oauth2/token
-    Note over Client,AuthService: grant_type=authorization_code&code=xxx&redirect_uri=xxx
-    
-    AuthService->>Cognito: Exchange code with Cognito
-    Note over AuthService,Cognito: POST to cognito-domain/oauth2/token
-    
-    Cognito->>AuthService: Return tokens from Cognito
-    AuthService->>Client: Return access_token, id_token, refresh_token
-    Note over Client: Store tokens for API calls
-```
-
-**Lưu ý**: Flow này sử dụng Cognito Hosted UI để xử lý authentication, sau đó AuthService chỉ đóng vai trò proxy để exchange authorization code với Cognito.
-
-### 2. Authorization Code Flow (Direct Authentication)
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant AuthService
-    participant DynamoDB
-    participant Cognito
-
-    Client->>AuthService: POST /auth/login (OAuth2 mode)
-    Note over Client,AuthService: email=xxx&password=xxx&client_id=xxx&redirect_uri=xxx
-    
-    AuthService->>Cognito: AdminInitiateAuth
-    Cognito->>AuthService: Return authentication result
-    
-    AuthService->>DynamoDB: Store auth code with user credentials
-    AuthService->>Client: Return redirect_uri with code
-    
-    Client->>AuthService: POST /oauth2/token
-    Note over Client,AuthService: grant_type=authorization_code&code=xxx
-    
-    AuthService->>DynamoDB: Validate and consume auth code
-    DynamoDB->>AuthService: Return stored user credentials
-    
-    AuthService->>Cognito: AdminInitiateAuth with stored credentials
-    Cognito->>AuthService: Return tokens
-    
-    AuthService->>Client: Return access_token, id_token, refresh_token
-```
-
-### 3. Password Grant Flow
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant AuthService
-    participant Cognito
-
-    Client->>AuthService: POST /oauth2/token
-    Note over Client,AuthService: grant_type=password&username=xxx&password=xxx
-    
-    AuthService->>Cognito: AdminInitiateAuth
-    Cognito->>AuthService: Return tokens
-    
-    AuthService->>Client: Return access_token, id_token, refresh_token
-    Note over Client: Use tokens for API authorization
-```
-
-### 4. Client Credentials Flow
-
-```mermaid
-sequenceDiagram
-    participant Service
-    participant AuthService
-    participant DynamoDB
-
-    Service->>AuthService: POST /oauth2/token
-    Note over Service,AuthService: grant_type=client_credentials&client_id=xxx
-    
-    AuthService->>DynamoDB: Store service token
-    AuthService->>Service: Return service access_token
-    Note over Service: Use for service-to-service auth
-```
-
-## 🚀 Bắt đầu nhanh
-
-### Prerequisites
-- **Node.js** 18.x hoặc cao hơn
-- **AWS CLI** được cấu hình
-- **Serverless Framework** 2.x
-
-### 1. Cài đặt dependencies
+### Quick Start
 ```bash
-npm install
+node serve.js
 ```
 
-### 2. Cấu hình environment
+**Server Information:**
+- 📱 Frontend URL: http://localhost:3000
+- 🔗 OAuth2 Callback URL: http://localhost:3000/callback
+
+### Features
+✅ OAuth2 Authorization Code Flow  
+✅ OAuth2 Client Credentials Flow  
+✅ JWT Token Management  
+✅ SSO Cross-Service Testing  
+✅ Interactive UI for all endpoints
+
+## 📋 OAuth2 Grant Types Overview
+
+### 1. Authorization Code Grant (Most Secure)
+**Use Case:** Web applications with server-side backend
+- **Step 1:** Redirect user to authorization server
+- **Step 2:** Exchange authorization code for access token
+- **Security:** Most secure, tokens never exposed to browser
+
+### 2. Implicit Grant (Deprecated)
+**Use Case:** Single-page applications (SPA) - **NOT RECOMMENDED**
+- Tokens returned directly in URL fragment
+- Security risk: tokens exposed in browser history
+
+### 3. Resource Owner Password Credentials Grant
+**Use Case:** Trusted applications (mobile apps, first-party apps)
+- Direct username/password authentication
+- Used in our demo with `sso-test@example.com / SSOTest123!`
+
+### 4. Client Credentials Grant
+**Use Case:** Service-to-service authentication
+- Machine-to-machine communication
+- No user context required
+
+### 5. Refresh Token Grant
+**Use Case:** Token renewal without re-authentication
+- Extends user session
+- More secure than long-lived access tokens
+
+### 6. Device Authorization Grant
+**Use Case:** IoT devices, smart TVs, limited input devices
+- Device shows code, user authorizes on separate device
+
+### PKCE Enhancement
+**Use Case:** Public clients (mobile apps, SPAs)
+- Adds code challenge/verifier for extra security
+- Prevents authorization code interception attacks
+
+## 🏗️ System Architecture
+
+### AWS Cognito Integration
+- **User Pool:** Manages user registration and authentication
+- **App Client:** Handles OAuth2 flows
+- **JWT Tokens:** Industry-standard authentication tokens
+
+### Lambda Functions
+- **auth-service-minimal.js:** HTTP-compatible Cognito authentication
+- **auth-service.js:** Full Lambda event format with DynamoDB integration
+- **user-service.js:** User management and DynamoDB operations
+
+### Frontend Implementation
+- **OAuth2 Login Page:** Custom HTML with parameter display
+- **Demo Credentials:** Pre-filled for testing
+- **Auto-redirect:** Seamless callback flow with tokens
+
+## 🔧 API Endpoints
+
+### Authentication Endpoints
+```
+POST /register        - User registration
+POST /login          - User authentication
+POST /oauth2/token   - OAuth2 token endpoint
+GET  /oauth2/authorize - OAuth2 authorization endpoint
+POST /oauth2/password - Password grant flow
+POST /oauth2/client_credentials - Client credentials flow
+```
+
+### Protected Endpoints
+```
+GET  /user/profile   - User profile (JWT required)
+GET  /orders        - User orders (JWT required)
+GET  /products      - Product catalog (JWT required)
+GET  /health        - Health check
+```
+
+### OAuth2 Flow URLs
+```
+GET  /oauth2-login  - OAuth2 login page
+GET  /callback      - OAuth2 callback handler
+```
+
+## 🧪 Testing Examples
+
+### User Registration
 ```bash
-cp env.example env.dev
-# Chỉnh sửa env.dev với thông tin AWS của bạn
+curl -X POST https://your-api-gateway-url/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser",
+    "password": "TestPass123!",
+    "email": "test@example.com"
+  }'
 ```
 
-### 3. Deploy lên AWS
+### User Login
 ```bash
-npm run deploy:auth
+curl -X POST https://your-api-gateway-url/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser",
+    "password": "TestPass123!"
+  }'
 ```
 
-### 4. Chạy local server
+### OAuth2 Password Grant
 ```bash
-npm start
+curl -X POST https://your-api-gateway-url/oauth2/password \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "sso-test@example.com",
+    "password": "SSOTest123!",
+    "client_id": "your-client-id"
+  }'
 ```
 
-Frontend demo sẽ chạy tại `http://localhost:3000`
+### OAuth2 Authorization Code Flow
+```bash
+# Step 1: Get authorization code
+curl "https://your-api-gateway-url/oauth2/authorize?response_type=code&client_id=your-client-id&redirect_uri=http://localhost:3000/callback&scope=openid"
 
-## 📋 API Endpoints
-
-### 🔐 Authentication Service
-
-#### Public Endpoints
-```
-GET  /health                    # Health check
-GET  /auth/test                 # Service info
-POST /auth/register             # User registration
-POST /auth/login                # User login
-
-# OAuth2 Flow
-GET  /oauth2/authorize          # Authorization endpoint
-POST /oauth2/token              # Token endpoint
-POST /oauth2/refresh            # Refresh token
-GET  /oauth2/userinfo           # User info endpoint
+# Step 2: Exchange code for tokens
+curl -X POST https://your-api-gateway-url/oauth2/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "authorization_code",
+    "code": "AUTH_1751964088605_6ktamr9na",
+    "client_id": "your-client-id",
+    "redirect_uri": "http://localhost:3000/callback"
+  }'
 ```
 
-#### Protected Endpoints (require JWT)
-```
-GET  /auth/profile              # Get user profile
-POST /auth/logout               # User logout
+### OAuth2 Client Credentials
+```bash
+curl -X POST https://your-api-gateway-url/oauth2/client_credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your-client-id",
+    "client_secret": "your-client-secret",
+    "scope": "service"
+  }'
 ```
 
-### 👤 User Management Service
+### Using JWT Tokens
+```bash
+# Add Authorization header to protected endpoints
+curl -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..." \
+  https://your-api-gateway-url/user/profile
+```
 
-#### Protected Endpoints (require JWT)
+## 🔑 JWT Token Structure
+
+### Access Token Example
+```json
+{
+  "sub": "0478a408-5061-7056-3408-45fd0c2b2fb1",
+  "aud": "your-client-id",
+  "cognito:groups": ["Users"],
+  "email_verified": true,
+  "iss": "https://cognito-idp.region.amazonaws.com/user-pool-id",
+  "cognito:username": "testuser",
+  "aud": "client-id",
+  "token_use": "access",
+  "scope": "openid",
+  "exp": 1751967688,
+  "iat": 1751964088,
+  "version": 2,
+  "jti": "token-id",
+  "client_id": "your-client-id"
+}
 ```
-GET  /users                     # List users (admin) or own profile
-POST /users                     # User actions (getProfile, updateProfile, etc.)
-GET  /users/{id}                # Get user by ID
-PUT  /users/{id}                # Update user
-DELETE /users/{id}              # Delete user (admin only)
+
+### ID Token Example
+```json
+{
+  "sub": "0478a408-5061-7056-3408-45fd0c2b2fb1",
+  "aud": "your-client-id",
+  "cognito:groups": ["Users"],
+  "email_verified": true,
+  "iss": "https://cognito-idp.region.amazonaws.com/user-pool-id",
+  "cognito:username": "testuser",
+  "aud": "client-id",
+  "token_use": "id",
+  "exp": 1751967688,
+  "iat": 1751964088,
+  "email": "test@example.com"
+}
 ```
+
+## 🆚 AWS Cognito vs Google OAuth2
+
+| Feature | AWS Cognito | Google OAuth2 |
+|---------|-------------|---------------|
+| **Architecture** | All-in-one identity service | OAuth2 provider + Google APIs |
+| **User Management** | Built-in user pools | Google account system |
+| **Customization** | High (custom domains, UI, flows) | Limited (Google branding) |
+| **Enterprise Features** | SAML, OIDC, MFA, Groups | Google Workspace integration |
+| **Pricing** | Pay per MAU | Free up to limits, then pay |
+| **Token Format** | JWT with custom claims | JWT with Google claims |
+| **Scopes** | Custom + OpenID | Google services + OpenID |
+
+## 🐛 Common Issues & Solutions
+
+### 1. Port 3000 Already in Use
+```bash
+# Kill process using port 3000
+lsof -ti:3000 | xargs kill -9
+
+# Or use different port
+PORT=3001 node serve.js
+```
+
+### 2. Invalid Action Errors
+- **Cause:** Lambda functions expect Lambda event format, not HTTP format
+- **Solution:** Use `auth-service-minimal.js` for HTTP compatibility
+
+### 3. DynamoDB User Not Found
+- **Cause:** Registration only creates Cognito user, not DynamoDB record
+- **Solution:** Ensure user service creates DynamoDB record after registration
+
+### 4. Protected Endpoints Return null
+- **Cause:** JWT token validation or event format issues
+- **Solution:** Check JWT token format and Lambda event structure
 
 ## 🔧 Configuration
 
 ### Environment Variables
 ```bash
-# AWS Configuration
+COGNITO_USER_POOL_ID=us-east-1_xxxxxxxxx
+COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
 AWS_REGION=us-east-1
-STAGE=dev
-
-# Cognito Configuration
-USER_POOL_ID=us-east-1_dXp683hoC
-USER_POOL_CLIENT_ID=h1098nsapivi7j0nn3imjm4i5
-COGNITO_DOMAIN=dev-auth-domain.auth.us-east-1.amazoncognito.com
-
-# DynamoDB Tables
-AUTH_CODES_TABLE=auth-codes-dev
-SESSIONS_TABLE=sessions-dev
+USER_SERVICE_NAME=microserviceSSO-optimized-user-service
+SESSIONS_TABLE_NAME=microserviceSSO-optimized-Sessions
 ```
 
-## 🎯 OAuth2 Flows Support
-
-### 1. Authorization Code Flow
-```javascript
-// Step 1: Get authorization code
-GET /oauth2/authorize?response_type=code&client_id=xxx&redirect_uri=xxx
-
-// Step 2: Exchange code for tokens
-POST /oauth2/token
-{
-  "grant_type": "authorization_code",
-  "code": "auth_code",
-  "client_id": "xxx",
-  "redirect_uri": "xxx"
-}
+### Serverless Configuration
+```yaml
+# serverless-optimized.yml
+functions:
+  auth-service:
+    handler: lambda/auth-service-minimal/auth-service-minimal.handler
+    environment:
+      COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID}
+      COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID}
 ```
 
-### 2. Password Grant Flow
-```javascript
-POST /oauth2/token
-{
-  "grant_type": "password",
-  "username": "user@example.com",
-  "password": "password123",
-  "client_id": "xxx"
-}
-```
+## 📈 Testing Results
 
-### 3. Client Credentials Flow
-```javascript
-POST /oauth2/token
-{
-  "grant_type": "client_credentials",
-  "client_id": "xxx"
-}
-```
+### ✅ Working Features
+- User registration with Cognito
+- User login with JWT tokens
+- OAuth2 Password Grant with real tokens
+- OAuth2 Authorization Code Flow with demo tokens
+- OAuth2 Client Credentials for service authentication
+- JWT token decoding and user info extraction
+- OAuth2 login page with complete authorization flow
 
-### 4. Refresh Token Flow
-```javascript
-POST /oauth2/refresh
-{
-  "refresh_token": "refresh_token_here"
-}
-```
+### ⚠️ Known Issues
+- Protected endpoints returning `{"message": null}`
+- Manual DynamoDB user creation required
+- Lambda vs HTTP event format incompatibility
 
-## 🛡️ Security Features
+## 🚀 Deployment
 
-- **JWT-based authentication** với Cognito
-- **CORS protection** cho cross-origin requests
-- **Role-based access control** (Admin/User)
-- **Token expiration** và refresh mechanism
-- **Input validation** và sanitization
-- **Error handling** an toàn
-
-## 📊 Database Schema
-
-### Auth Codes Table (DynamoDB)
-```json
-{
-  "code": "AUTH_1234567890_abc123",
-  "clientId": "h1098nsapivi7j0nn3imjm4i5",
-  "redirectUri": "http://localhost:3000/callback",
-  "expiresAt": 1640995200,
-  "createdAt": 1640994600000,
-  "metadata": {
-    "scope": "openid profile email",
-    "state": "random_state",
-    "username": "user@example.com"
-  }
-}
-```
-
-### Sessions Table (DynamoDB)
-```json
-{
-  "token": "access_token_here",
-  "userId": "user123",
-  "tokenType": "access",
-  "expiresAt": 1640998800,
-  "createdAt": 1640995200000,
-  "clientId": "h1098nsapivi7j0nn3imjm4i5"
-}
-```
-
-## 🧪 Testing
-
-### Test OAuth2 Flow
+### Development
 ```bash
-# 1. Start authorization flow
-curl "http://localhost:3000/oauth2/authorize?response_type=code&client_id=h1098nsapivi7j0nn3imjm4i5&redirect_uri=http://localhost:3000/callback"
-
-# 2. Exchange code for tokens
-curl -X POST http://localhost:3000/oauth2/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=authorization_code&code=AUTH_CODE&client_id=h1098nsapivi7j0nn3imjm4i5&redirect_uri=http://localhost:3000/callback"
-
-# 3. Use access token
-curl -H "Authorization: Bearer ACCESS_TOKEN" http://localhost:3000/auth/profile
+npm install
+serverless deploy --config serverless-optimized.yml --stage dev
 ```
 
-### Test Password Grant
+### Production
 ```bash
-curl -X POST http://localhost:3000/oauth2/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password&username=user@example.com&password=password123&client_id=h1098nsapivi7j0nn3imjm4i5"
+serverless deploy --config serverless-optimized.yml --stage prod
 ```
 
-## 📝 Deployment Checklist
+### Local Testing
+```bash
+node serve.js
+# Visit http://localhost:3000 for interactive testing
+```
 
-- [ ] AWS CLI configured
-- [ ] Environment variables set
-- [ ] Cognito User Pool created
-- [ ] DynamoDB tables created
-- [ ] Lambda functions deployed
-- [ ] API Gateway configured
-- [ ] CORS settings applied
-- [ ] Frontend configured with correct endpoints
+## 📚 Additional Resources
 
-## 🤝 Contributing
+- [OAuth2 RFC 6749](https://tools.ietf.org/html/rfc6749)
+- [AWS Cognito Documentation](https://docs.aws.amazon.com/cognito/)
+- [JWT.io Token Debugger](https://jwt.io/)
+- [OAuth2 Security Best Practices](https://tools.ietf.org/html/draft-ietf-oauth-security-topics)
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
+**Last Updated:** January 2025  
+**Version:** 1.0  
+**Project:** Microservice SSO Implementation 
