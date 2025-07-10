@@ -28,26 +28,41 @@ async function validateClientId(clientId) {
 async function storeAuthCode(code, clientId, redirectUri, metadata = {}) {
     const expiresAt = Math.floor(Date.now() / 1000) + 600; // 10 minutes expiry
     
+    const item = {
+        code,
+        clientId,
+        redirectUri,
+        expiresAt,
+        createdAt: Date.now(),
+        metadata: metadata,
+        username: metadata.username // Add username from metadata
+    };
+    
+    console.log('💾 Storing auth code:', code);
+    console.log('📋 Table name:', AUTH_CODES_TABLE);
+    console.log('📦 Item to store:', JSON.stringify(item, null, 2));
+    
     await dynamodb.put({
         TableName: AUTH_CODES_TABLE,
-        Item: {
-            code,
-            clientId,
-            redirectUri,
-            expiresAt,
-            createdAt: Date.now(),
-            metadata: metadata,
-            username: metadata.username // Add username from metadata
-        }
+        Item: item
     }).promise();
+    
+    console.log('✅ Auth code stored successfully');
 }
 
 // Helper function to validate and consume auth code
 async function validateAndConsumeAuthCode(code, clientId, redirectUri) {
+    console.log('🔍 Looking for auth code:', code);
+    console.log('📋 Table name:', AUTH_CODES_TABLE);
+    console.log('🔑 Client ID:', clientId);
+    console.log('📍 Redirect URI:', redirectUri);
+    
     const result = await dynamodb.get({
         TableName: AUTH_CODES_TABLE,
         Key: { code }
     }).promise();
+
+    console.log('📊 DynamoDB result:', JSON.stringify(result, null, 2));
 
     const authCode = result.Item;
     if (!authCode) {
@@ -468,6 +483,28 @@ async function oauth2Token({
 
         if (grant_type === 'authorization_code') {
             // Handle authorization code flow
+            if (!code) {
+                return {
+                    statusCode: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        error: 'invalid_request',
+                        error_description: 'code is required for authorization_code grant type'
+                    })
+                };
+            }
+            
+            if (!redirect_uri) {
+                return {
+                    statusCode: 400,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        error: 'invalid_request',
+                        error_description: 'redirect_uri is required for authorization_code grant type'
+                    })
+                };
+            }
+            
             return await handleAuthorizationCode(code, redirect_uri, client_id, code_verifier);
         } else if (grant_type === 'password') {
             // Handle Resource Owner Password Credentials flow
@@ -563,67 +600,63 @@ async function handleClientCredentials(client_id) {
 
 // Helper function to handle authorization code exchange with PKCE
 async function handleAuthorizationCode(code, redirectUri, clientId, codeVerifier) {
-    const { username, metadata } = await validateAndConsumeAuthCode(code, clientId, redirectUri);
-
-    // Validate PKCE if code_challenge was provided
-    if (metadata.code_challenge) {
-        if (!codeVerifier) {
-            throw new Error('code_verifier is required when code_challenge was provided');
-        }
-
-        let expectedChallenge;
-        if (metadata.code_challenge_method === 'S256') {
-            const crypto = require('crypto');
-            expectedChallenge = crypto
-                .createHash('sha256')
-                .update(codeVerifier)
-                .digest('base64')
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=/g, '');
-        } else if (metadata.code_challenge_method === 'plain') {
-            expectedChallenge = codeVerifier;
-        }
-
-        if (expectedChallenge !== metadata.code_challenge) {
-            throw new Error('Invalid code_verifier');
-        }
-    }
-
+    console.log('🔄 Processing authorization code from Cognito Hosted UI');
+    console.log('📋 Code:', code);
+    console.log('📍 Redirect URI:', redirectUri);
+    console.log('🔑 Client ID:', clientId);
+    
     try {
-        // Get user info
-        const userInfo = await cognito.adminGetUser({
-            UserPoolId: USER_POOL_ID,
-            Username: username
-        }).promise();
-
-        // Generate new tokens using stored password
-        const params = {
-            AuthFlow: 'ADMIN_NO_SRP_AUTH',
-            UserPoolId: USER_POOL_ID,
-            ClientId: clientId,
-            AuthParameters: {
-                USERNAME: username,
-                PASSWORD: metadata.password // Use stored password
-            }
-        };
-
-        const result = await cognito.adminInitiateAuth(params).promise();
+        // Exchange code directly with Cognito domain
+        const cognitoDomain = process.env.COGNITO_DOMAIN || 'dev-auth-domain.auth.us-east-1.amazoncognito.com';
+        const tokenEndpoint = `https://${cognitoDomain}/oauth2/token`;
         
+        const tokenParams = new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: clientId,
+            code: code,
+            redirect_uri: redirectUri
+        });
+
+        // Add PKCE if provided
+        if (codeVerifier) {
+            tokenParams.append('code_verifier', codeVerifier);
+        }
+
+        console.log('🌐 Exchanging code with Cognito domain:', tokenEndpoint);
+        console.log('📤 Token params:', tokenParams.toString());
+
+        const tokenResponse = await fetch(tokenEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: tokenParams.toString()
+        });
+
+        const tokenResult = await tokenResponse.json();
+        console.log('📥 Cognito response:', JSON.stringify(tokenResult, null, 2));
+
+        if (!tokenResponse.ok) {
+            throw new Error(`Cognito token exchange failed: ${tokenResult.error_description || tokenResult.error}`);
+        }
+
         return {
             statusCode: 200,
             headers: corsHeaders,
             body: JSON.stringify({
-                access_token: result.AuthenticationResult.AccessToken,
-                id_token: result.AuthenticationResult.IdToken,
-                refresh_token: result.AuthenticationResult.RefreshToken,
-                token_type: 'Bearer',
-                expires_in: result.AuthenticationResult.ExpiresIn,
-                scope: metadata.scope || 'openid profile email'
+                access_token: tokenResult.access_token,
+                id_token: tokenResult.id_token,
+                refresh_token: tokenResult.refresh_token,
+                token_type: tokenResult.token_type || 'Bearer',
+                expires_in: tokenResult.expires_in,
+                scope: tokenResult.scope,
+                sso_enabled: true,
+                cognito_hosted_ui: true
             })
         };
+
     } catch (error) {
-        console.error('Token exchange error:', error);
+        console.error('❌ Token exchange error:', error);
         return {
             statusCode: 400,
             headers: corsHeaders,
